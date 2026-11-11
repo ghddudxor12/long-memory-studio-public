@@ -22,7 +22,7 @@ How the pieces fit together:
 
 ```mermaid
 flowchart TD
-  U[User request<br/>e.g. "continue EP011"] --> O[longform-studio<br/>orchestrator skill]
+  U["User request<br/>e.g. continue EP011"] --> O[longform-studio<br/>orchestrator skill]
   O -->|GET /api/agent/brief, /api/next| A[Long Memory Studio app<br/>127.0.0.1:5178]
   O -->|keyframes, end frames, assets| G[longform-gpt-images]
   O -->|video clips| F[longform-flow-veo]
