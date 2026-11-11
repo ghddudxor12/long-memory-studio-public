@@ -1,5 +1,7 @@
 # Aside skills (example)
 
+**English** | [한국어](README.ko.md)
+
 These are the three [Aside](https://asidehq.com) agent skills that operate Long Memory Studio day to day, shared as
 real-world examples. They are copies of a working setup with personal values replaced by placeholders
 (`<repo>`, `<workspace>`, `<google-account>`, `<YOUR_CHANNEL_ID>`, `<YOUR_FLOW_PROJECT_ID>` ...). They also keep the

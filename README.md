@@ -1,5 +1,7 @@
 # Long Memory Studio
 
+**English** | [한국어](README.ko.md)
+
 A local production studio for narrated long-form AI documentaries (built for the YouTube series "The Bible in Order").
 It keeps the state of every episode (script, narration, shot plan, keyframes, video clips, render, QC, package, upload, archive)
 in a local web app, renders with [Remotion](https://www.remotion.dev/), and exposes an API designed for an AI agent operator.
@@ -245,7 +247,7 @@ Tabs: 대장 · 에피소드 홈 · 시리즈 · 대본·내레이션 · 샷 보
 | Upload | `production.upload`, `production.youtube` | checklist incl. "en SRT 게시됨", "auto captions deleted", watch-page verify |
 | Archive | `_app/preview/` (480px stills, `proxy_360p.mp4`), `_app/archive.json` | Drive online-only status per folder; `swift scripts/evict.swift <paths>` clears the local Drive cache (files stay in Drive). Compiled Swift binaries get killed on this Mac, so run it with the `swift` interpreter |
 
-Scripts: `codex-image.mjs <job>` (Codex CLI image), `qc.mjs`, `previews.mjs`, `proxy.mjs`, `new-episode.mjs`, `render.mjs`, `tts.mjs`, `build-manifest.mjs`, `migrate/*` (EP001 one-offs).
+Scripts: `codex-image.mjs <job>` (Codex CLI image), `qc.mjs`, `previews.mjs`, `proxy.mjs`, `new-episode.mjs`, `render.mjs`, `tts.mjs`, `build-manifest.mjs`.
 UI themes: `astryx-dark.css` (default), `astryx.css`, `original-dark.css` (M1 board only) in `app/web/src/themes/`; switch with `appTheme` in studio.config.json.
 Aside skills (account): `longform-studio`, `longform-gpt-images`, `longform-flow-veo`.
 
