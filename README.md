@@ -84,25 +84,28 @@ Each episode moves through the same twelve steps. The app checks each step by it
 adopted, approvals recorded) and shows where the episode stands on its home tab.
 
 ```mermaid
-flowchart LR
-  P1["1 Plan"]:::you --> P2{"2 Script<br/>G1"}:::gate
-  P2 --> P3["3 Narration"]:::worker
-  P3 --> P4["4 Shot plan"]:::agent
-  P4 --> P5["5 Keyframes"]:::agent
-  P5 --> P6{"6 Keyframe review<br/>G2"}:::gate
-  P6 --> P7["7 Video clips"]:::agent
-  P7 --> P8["8 Edit and render"]:::worker
-  P8 --> P9{"9 Review<br/>G3"}:::gate
-  P9 --> P10["10 Package"]:::agent
-  P10 --> P11["11 Private upload"]:::agent
-  P11 --> P12["12 Archive"]:::agent
-  P6 -. "fix and regenerate" .-> P5
-  P9 -. "fix shots" .-> P7
+flowchart TB
+  subgraph R1["Words"]
+    direction LR
+    P1["1 Plan"]:::you --> P2{"2 Script<br/>G1"}:::gate --> P3["3 Narration"]:::worker --> P4["4 Shot plan"]:::agent
+  end
+  subgraph R2["Pictures"]
+    direction LR
+    P5["5 Keyframes"]:::agent --> P6{"6 Keyframe review<br/>G2"}:::gate --> P7["7 Video clips"]:::agent
+  end
+  subgraph R3["Finish and publish"]
+    direction LR
+    P8["8 Edit and render"]:::worker --> P9{"9 Review<br/>G3"}:::gate --> P10["10 Package"]:::agent --> P11["11 Private upload"]:::agent --> P12["12 Archive"]:::agent
+  end
+  R1 --> R2 --> R3
   classDef you fill:#3b82f6,color:#fff,stroke:#1e40af
   classDef gate fill:#f59e0b,color:#000,stroke:#b45309
   classDef agent fill:#10b981,color:#fff,stroke:#047857
   classDef worker fill:#6b7280,color:#fff,stroke:#374151
 ```
+
+A rejected frame at G2 goes back to step 5 for that shot only; a problem found at G3 goes back to step 7 (new clip or
+a different segment of the same clip) and only that part is re-rendered.
 
 Blue: you. Amber: your approval gate. Green: the agent. Grey: the app's worker (no AI needed).
 
