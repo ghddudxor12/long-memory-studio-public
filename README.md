@@ -34,32 +34,18 @@ the app keeps every result so nothing depends on one chat session.
 
 ```mermaid
 flowchart LR
-  subgraph YOU["You"]
-    Y1["Pick the story"]
-    Y2["Approve gates<br/>G1 script, G2 images, G3 video"]
-    Y3["Go public"]
-  end
-  subgraph AGENT["AI agent + skills"]
-    A1["Script and shot plan"]
-    A2["Keyframes and video clips"]
-    A3["Package, private upload,<br/>release schedule"]
-  end
-  subgraph APP["Long Memory Studio (local app)"]
-    S[("Episode state<br/>jobs, versions, approvals")]
-    W["Worker<br/>narration, render, QC"]
-  end
-  X["Codex CLI / Google Flow /<br/>YouTube Studio"]
-  Y1 --> A1
-  A1 --> S
-  S --> Y2
-  Y2 --> A2
-  A2 <--> X
-  A2 --> S
-  S --> W
-  W --> Y2
-  Y2 --> A3
-  A3 <--> X
-  A3 --> Y3
+  You["You<br/>pick the story, approve G1 G2 G3,<br/>switch to public"]:::you
+  Agent["AI agent + skills<br/>script, images, clips,<br/>package, private upload"]:::agent
+  App[("Studio app<br/>episode state, jobs, versions,<br/>approvals, worker")]:::app
+  Ext["Codex CLI, Google Flow,<br/>YouTube Studio"]:::ext
+  You -->|"one-line requests"| Agent
+  You <-->|"review tabs, approvals"| App
+  Agent <-->|"/api/agent/brief, jobs, results"| App
+  Agent <-->|"CLI and browser"| Ext
+  classDef you fill:#3b82f6,color:#fff,stroke:#1e40af
+  classDef agent fill:#10b981,color:#fff,stroke:#047857
+  classDef app fill:#6b7280,color:#fff,stroke:#374151
+  classDef ext fill:#f3f4f6,color:#111,stroke:#9ca3af
 ```
 
 ### 1. One-time setup
