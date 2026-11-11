@@ -1,0 +1,14 @@
+node_modules
+dist
+out
+.DS_Store
+.env
+# generated per episode by scripts/build-manifest.mjs (source of truth: <episode>/episode.json on Drive)
+src/episodes/*.manifest.json
+src/episodes/*.thumbnail.json
+app/web/dist
+# agent runtime state (Flow pacing/blocks), local only
+state/
+
+# local settings (copy studio.config.example.json)
+studio.config.json

@@ -1,0 +1,11 @@
+{
+  "workspace": "/path/to/your/workspace (e.g. a Google Drive for desktop folder)",
+  "episodes": {},
+  "appTheme": "astryx-dark",
+  "series": {
+    "bible-in-order": "01_The Bible in Order"
+  },
+  "upcoming": [],
+  "uploadDailyLimit": 10,
+  "flowProjectUrl": "https://flow.google.com/project/YOUR_FLOW_PROJECT_ID"
+}

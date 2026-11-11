@@ -1,0 +1,57 @@
+---
+name: "longform-flow-veo"
+description: "Long Memory Studio의 flow-veo 작업(Google Flow 영상 생성, 기본 Omni 1.2 Flash)을 Aside 브라우저로 처리하는 절차. 승인된 영상 생성 작업 실행, Flow 크레딧 확인, 1080p 업스케일, 클립 다운로드 시 읽는다."
+---
+
+# Flow video (Omni 1.2) for Long Memory Studio jobs
+
+Run only jobs with `approvedAt` (the user approved the credits in the 작업 큐 tab). Flow has no official API: operate the UI at human pace, one job at a time; stop on CAPTCHA.
+
+## Model policy (user decision 2026-11-09)
+- All new video uses **Omni 1.2 Flash**. Veo 3.1 Fast/Quality and Omni 1.1 are retired on 2026-12-05; Veo 3.1 Lite stays as a fallback only.
+- **Default since 2026-11-09 evening: `input.model = omni-1.2-720p` (24 credits / 8 s) → download 720p 원본 + 1080p 업스케일링됨, deliver the 1080p file.** The 360p path below is draft-only.
+- Old 360p notes: generate a 360p draft (1 credit/s up to 10 s), review it, then upscale in Flow and deliver the upscaled file. Observed 2026-11-09: for an Omni 360p clip the 미디어 다운로드 menu offers only "270p GIF / 360p 원본 / 720p 업스케일링됨" (no 1080p); the 720p upscale took ~1 min, cost no credits and downloads as `<name>_720p.mp4` (1280x720, ~0.9 Mbps). `omni-1.2-720p` = 3 credits/s up to 10 s. 11-15 s cost 2/s (360p) or 6/s (720p). Duration `input.durationSec` 3-15 s, 1 s steps (frames mode: the API documents 3-10 s; verify longer lengths before relying on them).
+- Output count: set **x1** (the default is x2 and doubles the cost).
+- Repairs: Omni 1.2 can edit a generated clip by conversation (e.g. "remove the sun disc") and extend 3-10 s; prefer an edit over a full regeneration when only one element is wrong. Same credit rates.
+
+## Before each job
+- **Since 2026-11-10: use the Ultra account <youtube-account> (default /u/0) and project `https://flow.google.com/project/<YOUR_FLOW_PROJECT_ID>` (The Bible in Order (Ultra)); watermark is off, 25,000 credits until 12/9. Several jobs can be submitted back to back (10 in a row worked); results appear as grid groups named by Flow, each video tile directly above its START/END uploads. The grid is virtualized: scroll to find older tiles. Policy refusals ("성적인 콘텐츠") happened for a man+woman shot: reword as small distant modest silhouettes; refunds are automatic.**
+- Old note: the browser's default Google account is now <youtube-account> (YouTube channel owner), which has no Flow project (404). Credits and the project live on **<google-account>** → always open `https://flow.google.com/u/1/project/<flowProject>` (EP002: <OLD_FLOW_PROJECT_ID>). Check the account button reads <google-account>.
+- Balance observed: monthly 1,000 (reset 11/27 23:36) was down to 8; on top of that a daily grant (~50) appears once a day at an unverified time (11/10 07:32 KST it had not refilled: balance 10). With balance < 24 the 생성 시작 button is replaced by "크레딧 부족 경고": do not submit; set the job back with `POST /api/queue/<id>/approve` and clear the prompt box (프롬프트 지우기).
+- Credits: account menu (계정 세부정보) → read the balance. Compare with `job.credits.estimated`. If balance < cost → `POST /api/queue/<id>/fail {"category":"credits-insufficient","message":"잔량 N"}` without submitting.
+- Project: `production.tools.flowProject` (`GET /api/episodes/<ID>`). Use a separate tab; never navigate a tab that holds unsaved work.
+
+## Submit (Flow UI as of 2026-11-09)
+1. Upload frames: "미디어 메뉴 추가 > 업로드" opens a file chooser. Upload `input.start.file` and, for `frames-to-video`, `input.end.file` (paths relative to the episode folder). Accept the "rights to use this image" dialog.
+2. Settings: click the prompt box button **설정 트리거** (label like "동영상 · 720p · 8초 x2"). In the popup: 동영상 → **프레임** (shows 시작 / 종료 slots in the prompt box) → 16:9 → 모델 제품군 선택 = **Omni 1.2 Flash** → 360p or 720p per `input.model` → 길이 slider = `input.durationSec` → **x1**. Read the "생성 시 N 크레딧" line and check it equals the estimate.
+3. Frames: click 시작 and pick the uploaded start image, then 종료 for the end image (or leave 종료 empty for `start-only`).
+4. Prompt: `input.prompt` as a timeline (0-2 / 2-4 ... s over the chosen duration). Do not type while a picker is open (text goes to its search box).
+5. Submit (생성 시작). If the agent asks to confirm credits, approve. "문제가 발생했습니다" → 다시 시도. Record the submit time.
+
+## Collect
+- **Standard since 2026-11-11 (user-approved mid-review):** jobs are created with `node scripts/mkveo.mjs <EP> [shots]` (repo; adds anti-swirl wording). Submit with `freshOne(list)` (one job, then wait 60-90 s). Collect each finished job with REPL `collectShot(job)` (finds the tile by the `<tag>_<shot>_START*.png` label under it, records the edit id, downloads 720p + 1080p, retries a failed upscale once after reload), then Bash `node scripts/flow-ingest.mjs <jobId> <1080p> <720p> --edit <id>` (moves into `_raw/<shot>_vN*.mp4`, checks 1920x1080, writes `_app/preview/clipcheck/` frames, completes the job). Review with `clipSheet(ep, shots)` before adopting. The manual steps below are the fallback; `/tmp/move_clips.mjs` and `collectTitles` (truncated-title matching) are retired.
+- Newest videos are added at the front of the grid; map by submit order and the start frame thumbnail. Count tiles to catch silently missing results.
+- 360p draft: show the draft to the review flow first (download the 360p file to `<episode>/2_소스/clips/_raw/<shot>_vN_360p.mp4` for reference only). Open the tile (opens the scene editor; Escape returns to the grid) → 미디어 다운로드 → 720p 업스케일링됨 (a toast says it takes a few minutes; the file lands in ~/Downloads). Downloads cannot be saved outside the session by the REPL: move them from ~/Downloads with Bash. Deliver the 720p file as `<output.dir>/<output.name>` and keep the 360p original next to it as `<shot>_vN_360p.mp4`. The server rejects widths < 1280.
+- 720p: 미디어 다운로드 → 720p 원본 크기 (lands as `~/Downloads/<Title>_<hash>.mp4` = ~/Downloads), then 미디어 다운로드 → 1080p 업스케일링됨 (~1 min, `<Title>_<hash>_1080p.mp4`). Move with Bash: 1080p → `<episode>/2_소스/clips/_raw/<shot>_vN.mp4`, 720p → `<shot>_vN_720p.mp4`. Then complete with `{"credits":24,"output":"2_소스/clips/_raw/<shot>_vN.mp4"}` and adopt via `POST /api/episodes/<ID>/shots/<shot>/adopt {"kind":"clip","file":"2_소스/clips/_raw/<shot>_vN.mp4"}` after a frame check.
+- Frame check: ffmpeg/ffprobe live at `<repo>/node_modules/@remotion/compositor-darwin-arm64/` (set `DYLD_LIBRARY_PATH` to that dir; complex filter strings fail there, so extract single frames with `-ss <t> -frames:v 1`). Check 0.5/2.5/4.5/6.5/7.8 s against the shot rules (God from behind/hands only, curly white hair, ivory+pale rose robe, no sash; people from behind, hidden by foliage before 3:21; fruit = unidentifiable light, never an apple; serpent = ordinary animal; cherubim faceless; no text). Generation of an 8 s 720p clip took ~50-60 s.
+- `POST /api/queue/<id>/complete {"credits": <actual incl. upscale>}`. Server validates duration (2.5-16 s)/resolution/new hash and registers a candidate clip.
+- **"비정상적인 활동이 감지되었습니다. 페이지를 수정하는 브라우저 확장 프로그램..." (2026-11-11 ~05:00 KST)**: after ~60 automated submissions in ~4 h (EP005-EP007), every new Flow video job failed instantly with this message; tile 다시 시도 and a page reload + fresh submit failed too. Failed tiles vanish on reload. Treat as an anti-automation cooldown: stop submitting, mark the jobs failed (credits 0) so the app shows the blocker, do other work, and retry one job much later; when resuming, pace submissions (pause between jobs, smaller batches). Do not try to evade the check. Observed: first block 05:00-06:00 KST (cleared after ~1 h; then 40 jobs at ~1/min went through), second block 08:45 KST on the very first job in a freshly opened Flow tab after a 1 h 48 m pause, so the trigger is not simple per-hour volume; unresolved.
+- 2026-11-11 evening (EP011-015 run): blocked at 18:53 KST after 21 submissions in ~63 min (75 s gap), cleared by 19:52, blocked again at 20:01 after only 6 more (90 s gap). The trigger is not simple volume; resuming soon after a block seems to re-trip it. Next time rest 2 h+ after a block and keep batches small.
+- 2026-11-11 22:14 KST: after a 2 h 13 m rest a single retry worked (clip clean); resuming at a 150 s gap tripped the block again on the 7th submission (22:34). Three blocks in one evening with 21, 6 and 7 submissions between them: the gap length did not matter. Stop automated submission for the day and decide with the user how to continue (e.g. far smaller daily batches, manual submission by the user, or waiting a full day); never try to evade the check.
+- Third block 12:25 KST (03:25 UTC) 11/11, cleared by 13:03 KST (one test job ok). Upscale once answered '업스케일링할 수 없습니다' twice in a row and worked after a page reload.
+- Omni habit: curling/spiral white wisps appear in calm interiors (EP010-2 S04-03 v1, 0.8-6 s). mkveo.mjs now forbids them by default; when they still appear, regenerate rather than trimming if the clean part is shorter than the shot.
+- File-name gotcha: re-generated frames must be uploaded under versioned names (`EPn_Sxx-xx_START_v<k>.png` / `END_v<k>.png`); reusing the old name made Flow pick the old upload. `fullMap`/`gridMap2` regexes accept the `_v<k>` suffix.
+- Failure messages: "daily quota" → check balance first (EP001: it was really insufficient credits); real quota → `quota`; policy block → `policy-refused`.
+- First test (EP002-1 S02-05, 2026-11-09): oil-painting look kept, start/end frames respected; the 720p upscale is a little soft; mist moved in curly swirl loops; a white four-point sparkle mark sits bottom right in every frame (Gemini visible watermark, like the Veo mark: do not crop or remove). Frames mode > 10 s still unverified.
+- Quality test S02-05 (2026-11-09): 720p generation (24 credits) offers 미디어 다운로드 → 720p 원본 / 1080p 업스케일링됨 (0 credits, ~1 min, 1920x1080 ~4.3 Mbps); 4K is Ultra-only. Compared with 360p→720p, the 720p→1080p clip keeps visibly more oil-brush texture; the 360p path looks smooth and soft.
+- Visible ✦ watermark: Flow profile menu → 워터마크 표시 toggle is locked on with "거주 중인 지역에서는 워터마크 표시가 필수입니다" (Korea). Google says it is forced in India, South Korea and Vietnam unless on AI Ultra 20x; Ultra users in Korea also reported it. Every Omni clip will carry it on this account. Do not crop, blur or remove it.
+- Flow UI notes: the project may open with the agent side panel; close it (닫기) and toggle 에이전트 off to get the plain prompt box with 설정 트리거. Uploaded images do not show a rights dialog any more. Clicking 시작/종료 opens 프레임 이미지 선택: clicking the option fills the slot (for 종료 also click 프롬프트에 추가). Generation of an 8 s 360p clip took about 2 minutes.
+
+## What worked on EP001 (Veo 3.1; check whether it still applies to Omni)
+- Wardrobe/hair drift on God (sash, straight hair): regenerate both start and end frames as a tight from-behind close-up; changing only the end frame is not enough. Trim-and-dissolve joins expose drift.
+- Sun-like bursts before Day Four: GPT end frame with evenly lit clouds + positive light wording.
+- Static-looking sea: start frame only, motion-centred prompt (swells, foam, spray, bobbing camera), Veo Quality.
+- Abstract actions (firmament): a gesture-driven before/after with start+end frames reads better than a camera move.
+- Deformed hands drift: use the same image as start and end, animate only clouds/cloth/light.
+- Hands may curl after ~6 s on Fast: plan segments (e.g. 0-5.5 s + a held still).
+- Visible "Veo" watermark is forced on Korean non-Ultra accounts; do not crop or remove it.
