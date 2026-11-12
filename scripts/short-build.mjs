@@ -143,4 +143,5 @@ const sheet = path.join(S.dir, 'sheet.html');
 fs.writeFileSync(sheet, `<html><body style="margin:0;background:#444;display:flex;flex-wrap:wrap;gap:4px;width:${Math.min(frames.length, 8) * 304}px">${frames.map((f) => `<div style="position:relative"><img src="http://127.0.0.1:5199/f${encodeURI(f)}" style="width:300px;height:533px;display:block"><span style="position:absolute;left:3px;bottom:3px;background:#c00;color:#fff;font:13px sans-serif;padding:1px 3px">${path.basename(f, '.jpg')}</span></div>`).join('')}</body></html>`);
 const build = { ...report, file: outFile, loudness: { I: k.output_i, TP: k.output_tp }, renderSec: Math.round((Date.now() - t0) / 1000), sheet: 'http://127.0.0.1:5199/f' + encodeURI(sheet), sheetSize: { width: Math.min(frames.length, 8) * 304, height: Math.ceil(frames.length / 8) * 537 }, at: new Date().toISOString() };
 fs.writeFileSync(S.build, JSON.stringify(build, null, 1));
+fs.rmSync(S.stage, { recursive: true, force: true }); // no local copies left behind (user rule 2026-11-12); originals and output stay in Drive
 console.log(JSON.stringify(build, null, 1));

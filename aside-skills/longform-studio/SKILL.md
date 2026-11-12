@@ -21,6 +21,10 @@ The channel covers several topics (religions, myths, past wars). Each topic is a
 - Source text: pick a public-domain translation of the primary text for each topic (e.g. Hesiod in Evelyn-White 1914, Norse Eddas in Bellows 1923, Pali suttas in public-domain translations, ancient historians in Loeb editions before 1929) and record it in `source`; quotes in scripts and shorts come only from it, interpretations stay labelled.
 - Scripts that read the profile: ep-build (playlist, thumbnail label), translate (persona, quote and glossary rules), short-build (end card, closing hint, hashtags), new-episode (first-episode voice), REPL helpers (playlist on upload, short description footer, Flow project from `/api/channel`). Never hardcode topic wording in scripts again.
 
+## Local cleanup (user rule 2026-11-12)
+No local folders may remain once videos are done. After each archived episode, each batch of shorts and before ending a session run `node scripts/cleanup-local.mjs` (`--dry` first if unsure): it removes repo out/ scratch and out/shorts stages, the upload copies in Aside session tmp (flow/, yt2/), and evicts the Drive cache of archived episodes (renders and shorts re-cache them). Items changed in the last 15 minutes are kept, so running work is safe. Outputs live only in Drive; do not copy finished videos into session artifacts.
+
+
 ## System map
 - Code (git, private): `<repo>` → github.com/<you>/long-memory-studio
 - WORKSPACE (Drive streaming): `<workspace>`

@@ -48,6 +48,9 @@ Component: `src/compositions/PromoShort.tsx` (composition id `PromoShort`). Chan
    - now: `await ytVisibility(videoId, "public")` (returns the label after reload, expect "공개") → record `{"youtube":{"privacy":"public","scheduledPublish":null}}`.
    Check the public page once (`https://www.youtube.com/shorts/<id>`): the platform title and channel overlay sit in the empty bottom block, not over the captions.
 
+## Cleanup
+short-build removes its out/shorts/<id> stage after a successful build. After a batch run `node scripts/cleanup-local.mjs`; do not copy finished shorts into session artifacts (link the Drive file or show the review sheet).
+
 ## App
 `GET /api/shorts` (all shorts, 6 steps: 기획 → 빌드 → 검수 → 업로드(비공개) → 롱폼 연결 → 공개, current step, how-to), `GET /api/shorts/:id`, `GET /api/episodes/:id/short-candidates`, `POST /api/episodes/:id/shorts` (new skeleton), `POST /api/shorts/:id/build {dry}` (job), `PATCH /api/shorts/:id/state`. Unfinished shorts appear in `/api/next` and the brief; the app has a 숏폼 tab with the video and step list.
 
