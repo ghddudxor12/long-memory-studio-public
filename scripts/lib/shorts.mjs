@@ -14,8 +14,8 @@ export const probeDur = (file) => {
   const d = Number(r.stdout.toString().trim()); if (!d) throw new Error('cannot read duration of ' + file); return d;
 };
 
-export const BRAND_ICON = path.join(config.workspace, '00_채널공통', '브랜딩', 'channel_icon_800.png');
-export const CHANNEL_NAME = 'The Long Memory';
+export const BRAND_ICON = path.join(config.workspace, config.channel?.brandIcon || '00_채널공통/브랜딩/channel_icon_800.png');
+export const CHANNEL_NAME = config.channel?.name || 'The Long Memory';
 
 export function shortPaths(shortId) {
   const m = shortId.match(/^(.+)-S(\d+)$/); if (!m) throw new Error(`short id must look like <EPISODE_ID>-S<n>: ${shortId}`);

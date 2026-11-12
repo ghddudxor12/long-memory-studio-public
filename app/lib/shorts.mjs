@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { root, config, episodePaths, readJson } from '../../scripts/lib/paths.mjs';
+import { profileOfEpisode } from '../../scripts/lib/series.mjs';
 
 const now = () => new Date().toISOString();
 const rj = (f, d = null) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
@@ -96,7 +97,7 @@ export function createShort(ep) {
 export function register(app, { startJob }) {
   const wrap = (fn) => (req, res) => { try { const r = fn(req, res); if (r !== undefined) res.json(r); } catch (e) { res.status(e.status || 400).json({ error: e.message }); } };
   app.get('/api/shorts', wrap(() => listShorts()));
-  app.get('/api/shorts/:id', wrap((req) => { const s = shortState(req.params.id); const { dir } = shortDir(req.params.id); return { ...s, how: howForShort(s), spec: rj(path.join(dir, 'short.json')), build: rj(path.join(dir, 'build.json')) }; }));
+  app.get('/api/shorts/:id', wrap((req) => { const s = shortState(req.params.id); const { dir } = shortDir(req.params.id); return { ...s, how: howForShort(s), spec: rj(path.join(dir, 'short.json')), build: rj(path.join(dir, 'build.json')), profile: profileOfEpisode(s.episode) }; }));
   app.get('/api/episodes/:id/short-candidates', wrap((req) => candidates(req.params.id)));
   app.post('/api/episodes/:id/shorts', wrap((req) => createShort(req.params.id)));
   app.post('/api/shorts/:id/build', wrap((req) => { const { ep } = shortDir(req.params.id); return { job: startJob('short', ['scripts/short-build.mjs', req.params.id, ...(req.body?.dry ? ['--dry'] : [])], { episode: ep, target: req.params.id }).id }; }));

@@ -212,7 +212,8 @@ function Generate({ ep, s, onChanged }: { ep: string; s: Shot; onChanged: () => 
   const [jobs, setJobs] = useState<QJob[]>([]);
   useEffect(() => { api<Composed>(`/api/episodes/${ep}/shots/${s.key}/prompt?kind=${kind}`).then(setC); }, [ep, s.key, kind]);
   useEffect(() => { api<QJob[]>(`/api/queue?episode=${ep}`).then((l) => setJobs(l.filter((j) => j.target.shot === s.key))); }, [ep, s.key, msg]);
-  const sid = (c?.refs?.[0] && "bible-in-order") || "bible-in-order";
+  const [sid, setSid] = useState("bible-in-order");
+  useEffect(() => { api<{ id: string | null }>(`/api/episodes/${ep}/profile`).then((p) => p.id && setSid(p.id)).catch(() => {}); }, [ep]);
   async function req(type: string) {
     try {
       const j = await api<QJob>(`/api/queue`, "POST", { type, episode: ep, shot: s.key, backend: type === "flow-veo" ? undefined : backend, model, mode, durationSec: dur, extra: extra || undefined });

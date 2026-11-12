@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { root } from './lib/paths.mjs';
+import { profile } from './lib/series.mjs';
 
 const a = process.argv.slice(2); const opt = (k, d) => { const i = a.indexOf(`--${k}`); return i >= 0 ? a[i + 1] : d; };
 const id = a[0]; const n = Number(opt('ep')); const part = opt('part') ? Number(opt('part')) : null; const title = opt('title'); const sid = opt('series', 'bible-in-order');
@@ -54,12 +55,13 @@ if (!res.saved) { console.error('plan not saved', JSON.stringify(res.report).sli
 console.log('plan saved', scenes.length, 'scenes', scenes.flatMap((s) => s.shots).length, 'shots', scenes.flatMap((s) => s.shots).filter((s) => s.type === 'video').length, 'video; warnings', res.report.warnings.length);
 for (const w of res.report.warnings) console.log('  warn', w);
 // 5. metadata + thumbnail
-const prevId = Object.keys(c.episodes).filter((x) => x !== id).pop(); let settings = { language: 'English', category: 'Education', audience: 'Not made for kids', aiContent: 'Yes', playlist: 'The Bible in Order' };
-try { settings = JSON.parse(fs.readFileSync(path.join(c.workspace, c.episodes[prevId], '_app', 'metadata.json'), 'utf8')).settings || settings; } catch {}
+const P = profile(sid); // series profile: playlist, label, ...
+const prevId = Object.keys(c.episodes).filter((x) => x !== id && c.episodes[x].startsWith(c.series[sid] + '/')).pop(); let settings = { language: 'English', category: 'Education', audience: 'Not made for kids', aiContent: 'Yes', playlist: P.playlist };
+try { if (prevId) settings = { ...(JSON.parse(fs.readFileSync(path.join(c.workspace, c.episodes[prevId], '_app', 'metadata.json'), 'utf8')).settings || settings), playlist: P.playlist }; } catch {}
 const m = script.metadata; const tags = (m.tags || []).filter((t) => t !== 'The Long Memory');
 fs.writeFileSync(path.join(dir, '_app', 'metadata.json'), JSON.stringify({ title: m.title, titleAlternatives: m.titleAlternatives || [], description: m.description, chapterTitles: m.chapterTitles || [], tags, tagsAll: [...tags], settings, source: 'aside ep-build ' + new Date().toISOString().slice(0, 10), updatedAt: new Date().toISOString() }, null, 2));
 const label = part ? `${pad(n)}-${part}` : pad(n); const th = script.thumbnail || {};
 const lines = (th.lines || [script.title.toUpperCase()]).slice(0, 2).map((t, i) => ({ text: t, size: 110, color: i ? 'gold' : 'white' }));
-fs.writeFileSync(path.join(dir, 'thumbnail.json'), JSON.stringify({ series: 'THE BIBLE IN ORDER', ep: label, source: (th.highlightLabel || script.scope || '').toUpperCase(), image: 'thumb/thumb_base.png', titleTop: 440, lines, highlight: null }, null, 2));
+fs.writeFileSync(path.join(dir, 'thumbnail.json'), JSON.stringify({ series: P.label, ep: label, source: (th.highlightLabel || script.scope || '').toUpperCase(), image: 'thumb/thumb_base.png', titleTop: 440, lines, highlight: null }, null, 2));
 if (!m.description?.includes('{chapters}')) console.log('  warn: description has no {chapters}');
 console.log(JSON.stringify({ id, dir, assetJobs, title: m.title, titleLen: m.title?.length }));

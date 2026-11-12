@@ -13,6 +13,7 @@
 - 승인 위임(2026-11-10): G1/G2/G3는 Aside가 권장안대로 정하고 `{"by":"aside","note":"근거"}`로 기록. Flow 크레딧과 비공개 업로드는 사전 승인.
 - 대본은 줄이지 않는다(단어 상한 없음). 8분을 넘으면 분할. Ava (Premium) rate 115, lineGapSec 1.0.
 - 그림: 사람은 뒷모습·실루엣만(얼굴·옆모습 금지), 하나님은 손이나 빛, 이미지 속 글자 금지, 유혈·시신 금지.
+- 여러 주제(2026-11-12): 주제 = 시리즈. 주제마다 다른 값(표기, 재생목록, 원문 출처와 인용·번역 규칙, 설명 꼬리말, 쇼츠 문구·해시태그, 목소리, Flow 프로젝트)은 시리즈 프로필에 있다. 에피소드를 다루기 전 `GET /api/episodes/<ID>/profile`, 시리즈 전체는 `GET /api/channel`. 새 주제는 `POST /api/series` 또는 `node scripts/new-series.mjs` (스킬 longform-studio의 Series 절). 스크립트에 주제별 문구를 하드코딩하지 않는다.
 - 영상: Omni 1.2 Flash 720p → 1080p 업스케일, x1, 8초. 작업 생성은 `node scripts/mkveo.mjs <ID>` (소용돌이 금지 문구 기본).
 - Flow (2026-11-12 사용자 지시): 모든 UI 동작 사이에 3.00~5.00초 랜덤 대기(0.01초 단위). 완료를 기다리지 않고 5건씩 연속 제출 → 타일 확인. REPL `const L = await pacedList('<ID>')` 후 `await pacedNext(L)` 반복, 5건마다 `pacedCheck('<ID>')`. 결과: 11/12에 약 40건까지 차단 없음(이전엔 약 10건), 40번째쯤 다시 차단 → 한 번에 35건 안팎으로 끊는다. '비정상적인 활동'이 뜨면 `POST /api/flow/block` 후 멈추고 2시간 이상 뒤 1건만 재시도. 그 밖의 우회 시도 금지.
 - 수집: REPL `collectShot(job)`을 `done:true`가 나올 때까지 반복 호출(한 번에 90초 이내, 진행 상태를 저장해 이어서 함) → 돌려준 `node scripts/flow-ingest.mjs …` 명령을 Bash로 실행(앱 작업 완료까지 자동). 채택 전에 `clipSheet()`로 검수.

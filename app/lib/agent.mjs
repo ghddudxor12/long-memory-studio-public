@@ -8,6 +8,7 @@
 //   GET  /api/agent/brief         one compact markdown brief for a fresh agent context (rules + live state)
 //   GET  /api/agent/helpers.js    the Aside REPL helper library (eval it in the REPL)
 import { listShorts } from './shorts.mjs';
+import { seriesBrief } from './series-api.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { root, config, episodePaths, readJson } from '../../scripts/lib/paths.mjs';
@@ -50,6 +51,11 @@ const DOC = {
   'GET /api/episodes/:id/package': 'metadata, chapters, composed description, package checks',
   'PATCH /api/episodes/:id/upload': 'upload checklist {checks:{…}, youtube:{videoId, privacy, scheduledPublish}, by}',
   'POST /api/episodes/:id/archive/done': 'mark archived {by} (snapshot stages BEFORE evict)',
+  'GET /api/channel': 'channel settings + every series (label, source, episode count, upcoming)',
+  'GET /api/series/:id/profile': 'series profile (label, playlist, source text rules, translation rules, shorts wording, voice, flowProject) + style + rules',
+  'PATCH /api/series/:id/profile': 'merge {profile, style, rules} into series.json',
+  'GET /api/episodes/:id/profile': 'the series profile that applies to one episode',
+  'POST /api/series': 'create a series {id, name, folder?, profile, style, rules, notes} (scripts/new-series.mjs)',
   'GET /api/shorts': 'promo shorts: every <EP>-S<n> with 6 steps (spec, build, review, upload, public, link), current step, how-to',
   'GET /api/shorts/:id': 'one short: state + spec + last build (sheet URL for frame review)',
   'GET /api/episodes/:id/short-candidates': 'narration lines with seconds and tags (cold-open/quote/turn) + shots per scene',
@@ -141,7 +147,7 @@ export function flowPlan({ brief = false } = {}) {
   const collect = jobs.filter((j) => j.status === 'running').map((j) => ({ job: j.id, episode: j.episode, shot: j.target.shot, tileLabel: `${epTag(j.episode)}_${j.target.shot}_START`, submittedAt: j.flow?.submittedAt || null }));
   const lastHour = st.submissions.filter((s) => Date.parse(s.at) > Date.now() - 3600e3).length;
   const plan = { block: st.block, canSubmitNow: !st.block && (!nextSubmitAt || Date.parse(nextSubmitAt) <= Date.now()), nextSubmitAt, gapSec: FLOW_GAP_SEC, submittedLastHour: lastHour, submitCount: submit.length, collectCount: collect.length };
-  return brief ? plan : { ...plan, submit, collect, project: 'https://flow.google.com/project/YOUR_FLOW_PROJECT_ID', rules: ['한 번에 1건, 60-90초 간격', "'비정상적인 활동' → POST /api/flow/block 후 중단, 한참 뒤 1건만 재시도", '우회 시도 금지'] };
+  return brief ? plan : { ...plan, submit, collect, project: config.channel?.flowProject || null, rules: ['한 번에 1건, 60-90초 간격', "'비정상적인 활동' → POST /api/flow/block 후 중단, 한참 뒤 1건만 재시도", '우회 시도 금지'] };
 }
 export function markSubmitted(jid, body = {}) {
   if (body.at && Number.isNaN(Date.parse(body.at))) throw Object.assign(new Error('at은 ISO 시각이어야 해요'), { status: 400 });
@@ -157,7 +163,7 @@ export function brief() {
   let rules = ''; try { rules = fs.readFileSync(path.join(root, 'docs', 'agent-rules.md'), 'utf8'); } catch {}
   const n = nextActions(); const q = n.uploadQuota; const f = n.flow;
   const line = (a) => `- ${a.epLabel} · ${a.step} · ${a.who}${a.blocked ? ` · 막힘: ${a.blocked.reason}${a.blocked.until ? ' (' + a.blocked.until + ' 이후)' : ''}` : ''}\n${(a.how || []).map((h) => `    - ${h}`).join('\n')}`;
-  return `${rules.trim()}\n\n## 지금 상태 (${n.at})\n- YouTube 업로드: 24시간 ${q.used}/${q.limit}${q.nextAt ? `, 다음 가능 ${q.nextAt}` : ''} (추정, 실제 막힘 우선)\n- 다음 공개 예약 슬롯: ${n.nextReleaseSlot?.studio || '-'} 06:00 뉴욕\n- Flow: ${f.block ? `차단 중 (${f.block.message}, ${f.block.at})` : '차단 없음'} · 제출 대기 ${f.submitCount} · 수집 대기 ${f.collectCount} · 최근 1시간 제출 ${f.submittedLastHour}${f.nextSubmitAt ? ` · 다음 제출 가능 ${f.nextSubmitAt}` : ''}\n\n## 다음 할 일\n${n.actions.map(line).join('\n')}\n`;
+  return `${rules.trim()}\n\n## 지금 상태 (${n.at})\n- YouTube 업로드: 24시간 ${q.used}/${q.limit}${q.nextAt ? `, 다음 가능 ${q.nextAt}` : ''} (추정, 실제 막힘 우선)\n- 다음 공개 예약 슬롯: ${n.nextReleaseSlot?.studio || '-'} 06:00 뉴욕\n- Flow: ${f.block ? `차단 중 (${f.block.message}, ${f.block.at})` : '차단 없음'} · 제출 대기 ${f.submitCount} · 수집 대기 ${f.collectCount} · 최근 1시간 제출 ${f.submittedLastHour}${f.nextSubmitAt ? ` · 다음 제출 가능 ${f.nextSubmitAt}` : ''}\n\n${seriesBrief()}\n## 다음 할 일\n${n.actions.map(line).join('\n')}\n`;
 }
 
 export function register(app) {

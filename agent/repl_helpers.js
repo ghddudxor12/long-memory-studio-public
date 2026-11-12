@@ -3,7 +3,7 @@
 //   (fallback copy: skills/user/longform-studio/scripts/repl_helpers.js)
 // then: await lmsAttach()  (binds FLOWTAB, FMTAB, YTTAB to open tabs or opens them)
 globalThis.API = 'http://127.0.0.1:5178/api';
-globalThis.SES = '/Users/YOU/.aside/u/0/sessions/SESSION_FOLDER/';
+globalThis.SES = '/Users/YOU/.aside/u/0/sessions/2026-10-29_5d6kNwyerdcOFnOh/';
 // upload staging must live in the CURRENT session dir (setFiles rejects paths outside it); SES stays the old production session (scripts, script.json, frames)
 // (eval cannot use await, so lmsPaths() runs inside lmsAttach(); call it yourself if you skip lmsAttach)
 globalThis.lmsPaths = async () => { let d = null; try { const id = aside.sessions.current()?.id; d = (await fs.readdir('/Users/YOU/.aside/u/0/sessions/')).find((x) => id && x.endsWith('_' + id)); } catch {}
@@ -17,8 +17,9 @@ globalThis.epDir = async (ep) => { const cfg = JSON.parse(await fs.readFile('/Us
 globalThis.epTag = (ep) => ep.replace('BIB-GEN-00', 'EP');
 globalThis.lmsAttach = async () => {
   await lmsPaths(); const bt = await listBrowserTabs();
+  try { const ch = await (await fetch(API + '/channel')).json(); if (ch.flowProject) globalThis.FLOWURL = ch.flowProject; if (ch.channelId) globalThis.CHANNEL_ID = ch.channelId; } catch {} // multi-series: channel settings from the app
   const pick = async (re, url) => { const t = bt.find((x) => re.test(x.url || '')); return t ? await attachBrowserTab(t.targetId) : await openTab(url); };
-  globalThis.FLOWTAB = await pick(/flow\.google\.com\/project\/YOUR_FLOW_PROJECT_ID/, FLOWURL);
+  const fpid = (FLOWURL.match(/project\/([\w-]+)/) || [])[1] || ''; globalThis.FLOWTAB = await pick(new RegExp('flow\\.google\\.com(/u/\\d+)?/project/' + fpid), FLOWURL);
   globalThis.FMTAB = await pick(/flowmusic\.app\/session/, 'https://www.flowmusic.app/');
   globalThis.YTTAB = await pick(/studio\.youtube\.com\/(channel|video)/, 'https://studio.youtube.com/channel/YOUR_CHANNEL_ID/videos/upload');
   page = FLOWTAB; return 'ok';
@@ -92,8 +93,8 @@ globalThis.gridLabels = async (pages = 8) => { await page.evaluate(() => { const
     const more = await page.evaluate(() => { const s = [...document.querySelectorAll('*')].find((e) => e.scrollHeight > e.clientHeight + 200 && getComputedStyle(e).overflowY !== 'visible'); if (!s) return false; const b = s.scrollTop; s.scrollTop += 600; return s.scrollTop > b; }); await sleep(500); if (!more) break; }
   return out; };
 // map of "EPn:Sxx-xx" -> {title, pct, fail}; video tile precedes its START/END uploads
-globalThis.gridMap2 = async () => { const ls = await gridLabels(1); const out = []; let cur = null; for (const x of ls) { const fm = x.l.match(/^(EP[\d-]+|BIB-GEN-[\d-]+)_(S\d\d-\d\d)_(START|END)(?:_v\d+)?\.png$/); if (fm) { if (cur && !cur.shot) cur.shot = fm[1] + ':' + fm[2]; continue; } cur = { title: x.l, pct: x.t.match(/(\d+%)/)?.[1], fail: /실패/.test(x.t) ? x.t.replace(/\n/g, ' ').slice(0, 80) : null }; out.push(cur); } return out; };
-globalThis.fullMap = async (re, pages = 12) => { const ls = await gridLabels(pages); const acc = {}; let cur = null; for (const x of ls) { const fm = x.l.match(/^(EP[\d-]+|BIB-GEN-[\d-]+)_(S\d\d-\d\d)_(START|END)(?:_v\d+)?\.png$/); if (fm) { if (cur && !cur.shot) { cur.shot = fm[1] + ':' + fm[2]; if (re.test(cur.shot) && !acc[cur.shot]) acc[cur.shot] = cur; } continue; } cur = { title: x.l, pct: x.t.match(/(\d+%)/)?.[1], fail: /실패/.test(x.t) }; } return acc; };
+globalThis.gridMap2 = async () => { const ls = await gridLabels(1); const out = []; let cur = null; for (const x of ls) { const fm = x.l.match(/^([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*?)_(S\d\d-\d\d)_(START|END)(?:_v\d+)?\.png$/); if (fm) { if (cur && !cur.shot) cur.shot = fm[1] + ':' + fm[2]; continue; } cur = { title: x.l, pct: x.t.match(/(\d+%)/)?.[1], fail: /실패/.test(x.t) ? x.t.replace(/\n/g, ' ').slice(0, 80) : null }; out.push(cur); } return out; };
+globalThis.fullMap = async (re, pages = 12) => { const ls = await gridLabels(pages); const acc = {}; let cur = null; for (const x of ls) { const fm = x.l.match(/^([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*?)_(S\d\d-\d\d)_(START|END)(?:_v\d+)?\.png$/); if (fm) { if (cur && !cur.shot) { cur.shot = fm[1] + ':' + fm[2]; if (re.test(cur.shot) && !acc[cur.shot]) acc[cur.shot] = cur; } continue; } cur = { title: x.l, pct: x.t.match(/(\d+%)/)?.[1], fail: /실패/.test(x.t) }; } return acc; };
 // ---------- Flow collect (edit view sidebar) ----------
 // titles: video tile titles (aria labels). Opens the first via grid, then uses the edit-view sidebar buttons.
 // Clicks 720p original + 1080p upscale for each; files land in ~/Downloads (<Title>_<hash>.mp4 / _1080p.mp4); then run /tmp/move_clips.mjs.
@@ -106,7 +107,7 @@ globalThis.collectTitles = async (titles, budget = 100000) => { const st = Date.
     done.push(ti); }
   return done; };
 // ---------- YouTube scheduled publish ----------
-// ytSchedule('<videoId>', '2026. 11. 12.', '오전 6:00', '뉴욕(GMT-05:00)') on the video edit page; returns visibility label after save
+// ytSchedule('6-o8ZOdfYQk', '2026. 11. 12.', '오전 6:00', '뉴욕(GMT-05:00)') on the video edit page; returns visibility label after save
 globalThis.ytSchedule = async (vid, date, time = '오전 6:00', tz = '뉴욕(GMT-05:00)') => {
   page = YTTAB; await page.goto(`https://studio.youtube.com/video/${vid}/edit`); for (let i = 0; i < 15; i++) { await sleep(1000); if ((await snapI()).includes('동영상 공개 상태 수정')) break; }
   let t = await snapI(); await page.locator(ref(t, /button "동영상 공개 상태 수정" \[ref=(e\d+)\]/)).click(); await sleep(1500);
@@ -164,7 +165,7 @@ globalThis.sheet = async (files, cols = 5, w = 400, name = 'sheet') => { const d
 globalThis.esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 globalThis.lastDlg = (t) => t.slice(t.lastIndexOf('- dialog'));
 
-// ---------- YouTube upload (restored 2026-11-11 from the old session; tested on EP010-1 <videoId>) ----------
+// ---------- YouTube upload (restored 2026-11-11 from the old session; tested on EP010-1 FjAET7N3Yjg) ----------
 // order: copy mp4/thumbnail/SRTs into YT2 (CURSES tmp, setFiles rejects other dirs) -> ytUpload -> poll the
 // '업로드 중' text until gone (keep this tab!) -> ytFinish (private + save) -> check Studio row -> enSub -> langLoop -> ytSchedule
 // -> delAutoEn -> watchTracks -> PATCH /upload. SUBDIR holds <ID>.<code>.srt for en + 36 langs and <ID>_metadata.translations.json
@@ -172,13 +173,14 @@ globalThis.lastDlg = (t) => t.slice(t.lastIndexOf('- dialog'));
 // '일일 업로드 한도 도달 (일회성 인증 또는 24시간 대기)' inside the upload dialog and the file did not upload.
 globalThis.setText = async (r, text) => { const l = page.locator(r); await l.click(); await page.keyboard.press('Meta+A'); await page.keyboard.press('Backspace'); await page.keyboard.insertText(text); await sleep(300); };
 globalThis.ytUpload = async (ID, file, thumb, meta, desc) => {
+  const PLAYLIST = meta.settings?.playlist || (await (await fetch(`${API}/episodes/${ID}/profile`)).json()).playlist; // series playlist
   page = YTTAB; await page.goto('https://studio.youtube.com/channel/YOUR_CHANNEL_ID/videos/upload?d=ud'); await sleep(6000);
   let t = await snapI(); const fsb = ref(t,/button "파일 선택" \[ref=(e\d+)\]/);
   const [fc] = await Promise.all([page.waitForEvent('filechooser', {timeout:15000}), page.locator(fsb).click()]); await fc.setFiles(file); await sleep(9000);
   t = await snapI(); await setText(ref(t,/textbox "동영상을 설명하는 제목 추가[^"]*" \[ref=(e\d+)\]/), meta.title); t = await snapI(); await setText(ref(t,/textbox "시청자에게 동영상에 대해 설명해 주세요[^"]*" \[ref=(e\d+)\]/), desc);
   t = await snapI(); const [ft] = await Promise.all([page.waitForEvent('filechooser', {timeout:10000}), page.locator(ref(t,/button "파일 업로드" \[ref=(e\d+)\]/)).click()]); await ft.setFiles(thumb); await sleep(4000);
   t = await snapI(); await page.locator(ref(t,/button "재생목록 선택" \[ref=(e\d+)\]/)).click(); await sleep(1500);
-  await page.evaluate(()=>{ const items=[...document.querySelectorAll('ytcp-checkbox-lit')]; const it = items.find(c=>(c.closest('li')||c.parentElement)?.innerText?.includes('The Bible in Order')); if (it && it.getAttribute('aria-checked')!=='true') it.click(); }); await sleep(800);
+  await page.evaluate(()=>{ const items=[...document.querySelectorAll('ytcp-checkbox-lit')]; const it = items.find(c=>(c.closest('li')||c.parentElement)?.innerText?.includes(PLAYLIST)); if (it && it.getAttribute('aria-checked')!=='true') it.click(); }); await sleep(800);
   t = await snapI(); await page.locator(ref(t,/button "완료" \[ref=(e\d+)\]/)).click(); await sleep(1000);
   t = await snapI(); await page.locator(ref(t,/button "고급 설정 표시" \[ref=(e\d+)\]/)).click(); await sleep(1500);
   t = await snapI(); await page.locator(ref(t,/radio "아니요, 동영상에 유료 프로모션이 포함되어 있지 않습니다." \[ref=(e\d+)\]/)).click(); await page.locator(ref(t,/radio "예, AI가 사용되었습니다." \[ref=(e\d+)\]/)).click();
@@ -365,7 +367,7 @@ globalThis.pacedCheck = async (ep) => { page = FLOWTAB; await toTop(); const g =
 // PATCH /api/shorts/:id/state (counts toward the 10 uploads / 24 h limit). Vertical <= 3 min files become Shorts
 // automatically (the dialog shows "Shorts 리믹스"). Check GET /api/upload-quota first.
 globalThis.shortState = async (id, body) => (await fetch(`${API}/shorts/${id}/state`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json();
-globalThis.shortDesc = (S) => { const hook = (S.spec?.hook || []).join(' ').replace(/\*/g, ''); return S.spec?.upload?.description || `${hook}\n\nThe full episode, read in order: https://youtu.be/${S.upload.relatedVideo}\n\nScripture quotations are from the King James Version (public domain). Interpretations are labeled as interpretations.\nMade with AI: narration voice (synthetic) and visuals. Script and editing by the channel.\n\n#Shorts #Bible #Genesis`; };
+globalThis.shortDesc = (S) => { const hook = (S.spec?.hook || []).join(' ').replace(/\*/g, ''); const P = S.profile || {}; return S.spec?.upload?.description || `${hook}\n\nThe full episode, read in order: https://youtu.be/${S.upload.relatedVideo}\n\n${P.descriptionFooter || ''}\nMade with AI: narration voice (synthetic) and visuals. Script and editing by the channel.\n\n${S.spec?.hashtags || P.shorts?.hashtags || '#Shorts'}`; };
 globalThis.ytShortUpload = async (id) => {
   const S = await (await fetch(`${API}/shorts/${id}`)).json(); if (!S.files?.mp4) return 'no mp4: build first';
   if (S.state?.youtube?.videoId) return 'already uploaded: ' + S.state.youtube.videoId;

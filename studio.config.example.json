@@ -1,11 +1,19 @@
 {
   "workspace": "/path/to/your/workspace (e.g. a Google Drive for desktop folder)",
-  "episodes": {},
   "appTheme": "astryx-dark",
   "series": {
     "bible-in-order": "01_The Bible in Order"
   },
   "upcoming": [],
   "uploadDailyLimit": 10,
-  "flowProjectUrl": "https://flow.google.com/project/YOUR_FLOW_PROJECT_ID"
+  "flowProjectUrl": "https://flow.google.com/project/YOUR_FLOW_PROJECT_ID",
+  "channel": {
+    "name": "The Long Memory",
+    "handle": "@YourHandle",
+    "channelId": "YOUR_CHANNEL_ID",
+    "brandIcon": "00_채널공통/브랜딩/channel_icon_800.png",
+    "flowProject": "https://flow.google.com/project/YOUR_FLOW_PROJECT_ID",
+    "language": "English"
+  },
+  "episodes": {}
 }

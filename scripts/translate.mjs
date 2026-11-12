@@ -8,6 +8,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { episodePaths } from './lib/paths.mjs';
+import { profileOfEpisode, fill } from './lib/series.mjs';
 
 const id = process.argv[2];
 if (!id) { console.error('usage: node scripts/translate.mjs <ID> [--langs a,b] [--jobs 4] [--force]'); process.exit(1); }
@@ -16,7 +17,7 @@ const force = process.argv.includes('--force');
 const JOBS = Number(arg('--jobs', 4));
 const API = arg('--api', 'http://127.0.0.1:5178');
 const CODEX = process.env.CODEX_BIN || '/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex';
-const CODEX_HOME = process.env.CODEX_HOME_REAL || (process.env.HOME + '/.codex');
+const CODEX_HOME = process.env.CODEX_HOME_REAL || '/Users/YOU/.codex';
 
 export const LANGS = { ar: 'Arabic', bn: 'Bengali', cs: 'Czech', da: 'Danish', de: 'German', el: 'Greek', es: 'Spanish (Latin America)', fa: 'Persian', fi: 'Finnish', fil: 'Filipino', fr: 'French', he: 'Hebrew', hi: 'Hindi', hu: 'Hungarian', id: 'Indonesian', it: 'Italian', ja: 'Japanese', ko: 'Korean', ms: 'Malay', nb: 'Norwegian Bokmål', nl: 'Dutch', pl: 'Polish', pt: 'Portuguese (Brazil)', ro: 'Romanian', ru: 'Russian', sv: 'Swedish', sw: 'Swahili', ta: 'Tamil', te: 'Telugu', th: 'Thai', tr: 'Turkish', uk: 'Ukrainian', ur: 'Urdu', vi: 'Vietnamese', 'zh-Hans': 'Chinese (Simplified)', 'zh-Hant': 'Chinese (Traditional)' };
 const langs = arg('--langs', null)?.split(',') || Object.keys(LANGS);
@@ -32,13 +33,14 @@ fs.mkdirSync(path.join(P.publish, '자막'), { recursive: true });
 fs.mkdirSync(path.join(P.publish, '번역'), { recursive: true });
 
 function prompt(lang) {
-  return `You are a professional subtitle and YouTube metadata translator for a calm Bible documentary channel ("The Long Memory").
+  const SP = profileOfEpisode(id); // series profile: subject, source text rules, glossary
+  return `You are a professional subtitle and YouTube metadata translator for ${SP.subject} channel ("The Long Memory").
 Translate from English into ${LANGS[lang]} (${lang}).
 Rules:
-- Scripture quotations are from the King James Version: render them in the dignified traditional register used by Bibles in ${LANGS[lang]}, keep the meaning exact, and keep biblical names in the forms used by Bibles in that language.
-- Keep Hebrew/Greek terms that the narrator explains (e.g. adam, adamah, nephesh chayyah, Isha, Ish, paradeisos, edin) in Latin letters, optionally followed by the native script.
+- ${fill(SP.source.translateRule, { LANG: LANGS[lang] })}
+- ${SP.glossaryRule}
 - Subtitles: return exactly ${cues.length} cue strings in the same order, one per input cue, each at most 2 lines (use \\n), short enough to read; never merge or split cues.
-- Description: translate everything, keep the line structure, keep every chapter timestamp (${stamps.join(', ')}) exactly as written at the start of its line, keep hashtags in English, keep "King James Version" in English (you may add the local name in parentheses).
+- Description: translate everything, keep the line structure, keep every chapter timestamp (${stamps.join(', ')}) exactly as written at the start of its line, keep hashtags in English, keep "${SP.source.keepInEnglish}" in English (you may add the local name in parentheses).
 - Title: natural and compelling in ${LANGS[lang]}, at most 90 characters.
 Return ONLY a JSON object, no prose, no code fences: {"title": "...", "description": "...", "cues": ["...", ...]}
 

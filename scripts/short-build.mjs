@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { root, episodePaths, readJson } from './lib/paths.mjs';
+import { profileOfEpisode } from './lib/series.mjs';
 import { ff, probeDur, shortPaths, loadManifest, shotIndex, lineIndex, chunkTimes, chunks, weakEnding, emphasize, BRAND_ICON, CHANNEL_NAME } from './lib/shorts.mjs';
 
 const args = process.argv.slice(2);
@@ -31,7 +32,8 @@ if (args[0] === '--init' || args[0] === '--candidates') {
   const id = `${ep}-S${n}`; const dir = path.join(base, id); if (create) fs.mkdirSync(dir, { recursive: true });
   const episode = readJson(P.episodeJson); const lines = lineIndex(episode); const idx = shotIndex(loadManifest(ep));
   const subjects = fs.existsSync(path.join(P.app, 'subjects.json')) ? readJson(path.join(P.app, 'subjects.json')) : {};
-  const spec = { hook: ['', ''], emphasis: [], beats: [], endCard: { lines: ['THE BIBLE IN ORDER', CHANNEL_NAME] }, upload: { title: '', description: '', relatedVideo: '' } };
+  const SP = profileOfEpisode(ep);
+  const spec = { hook: ['', ''], emphasis: [], beats: [], endCard: { lines: SP.shorts.endCard }, closingHint: SP.shorts.closing, hashtags: SP.shorts.hashtags, upload: { title: '', description: '', relatedVideo: '' } };
   if (create) fs.writeFileSync(path.join(dir, 'short.json'), JSON.stringify(spec, null, 1));
   // candidates: hook-like lines (cold open, scripture quotes, turns) with their duration and the shots of their scene
   const cand = Object.values(lines).map((l) => {
@@ -103,7 +105,7 @@ const cue0 = manifest.bgm?.cues?.[0];
 const bgm = spec.bgm ? { src: spec.bgm.src, trim: spec.bgm.trim || 0 } : cue0 ? { src: cue0.src, trim: (cue0.trimBefore || 0) / (manifest.fps || 30) } : null;
 const props = { spec: { durationSec: total, channel: { name: CHANNEL_NAME, icon: 'brand/icon.png' }, hook: spec.hook, band: spec.band || { top: 450, height: 810 }, channelTop: 110, captionHeight: 220,
   shots: shots.map(({ key, ...s }) => s), lines: beats.map((b) => ({ src: b.src, at: b.at, dur: +b.dur.toFixed(3), text: emphasize(b.text, spec.emphasis) })),
-  ...(bgm ? { bgm: { src: bgm.src, trim: bgm.trim, volume: 0.22, duckVolume: 0.09 } } : {}), endCard: { at: +endAt.toFixed(2), lines: spec.endCard?.lines || ['THE BIBLE IN ORDER', CHANNEL_NAME] } } };
+  ...(bgm ? { bgm: { src: bgm.src, trim: bgm.trim, volume: 0.22, duckVolume: 0.09 } } : {}), endCard: { at: +endAt.toFixed(2), lines: spec.endCard?.lines || profileOfEpisode(ep).shorts.endCard } } };
 
 // 3. QC that does not need the render
 if (total > MAX_SEC) problems.push(`duration ${total}s is over ${MAX_SEC}s: drop a beat`);

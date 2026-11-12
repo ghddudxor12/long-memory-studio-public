@@ -18,6 +18,7 @@ Component: `src/compositions/PromoShort.tsx` (composition id `PromoShort`). Chan
 ## Content rules
 - 30-58 s. One idea that works without the long video: a hook line, the scripture, the turn, a closing line pointing to the channel.
 - Quote the KJV only (reuse the episode's narration lines; they are already checked). Interpretations stay labelled as interpretations, as in the episode.
+- Series wording comes from the episode's series profile (`GET /api/episodes/<ID>/profile`): `shorts.closing` for the closing line (fill {work}, e.g. "Genesis 4"), `shorts.hashtags`, `shorts.endCard`, `source.quoteRule`. `--init` copies them into short.json (closingHint, hashtags, endCard).
 - Prefer existing narration WAVs (`say: "S06_L3"`). New lines (`say: "new:..."`) are recorded with the episode voice and rate automatically; keep them to one short closing line.
 - Shots must match the words: the sun on "sun", the moon on "moon", the light column on "Let there be light". Use `from` anchors so the cut lands on the word.
 - Visual rules of the series still apply (people from behind, no text in images, no gore).

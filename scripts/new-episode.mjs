@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { root, config, readJson } from './lib/paths.mjs';
+import { profile } from './lib/series.mjs';
 
 const a = process.argv.slice(2);
 const opt = (k) => { const i = a.indexOf(`--${k}`); return i > 0 ? a[i + 1] : undefined; };
@@ -20,12 +21,14 @@ for (const d of ['_app', '1_발행본/자막', '1_발행본/번역', '2_소스/k
 
 // template: latest episode in the same series
 const prev = Object.entries(config.episodes).filter(([, f]) => f.startsWith(sFolder + '/')).map(([eid]) => eid).pop();
+const SP = profile(sid);
 const tpl = prev ? readJson(path.join(config.workspace, config.episodes[prev], 'episode.json')) : {};
 const episode = {
   id, title: en || title, subtitle: '', source: '',
   format: tpl.format || { width: 1920, height: 1080, fps: 30 },
-  voice: tpl.voice || { engine: 'macos-say', voice: 'Ava (Premium)', rate: 145 },
-  timing: tpl.timing || {},
+  // first episode of a series: voice and line gap come from the series profile
+  voice: tpl.voice || { engine: SP.voice.engine, voice: SP.voice.voice, rate: SP.voice.rate },
+  timing: tpl.timing || { lineGapSec: SP.voice.lineGapSec, sceneTailSec: 1.5, minImageShotSec: 4, crossfadeFrames: 12 },
   scenes: [],
   bgm: tpl.bgm ? { ...tpl.bgm, cues: [] } : undefined,
   burnSubtitles: tpl.burnSubtitles ?? false,
