@@ -31,3 +31,4 @@
 - 에피소드가 바뀌면 `clear` 또는 새 작업. 상태는 앱·스킬·헬퍼에 있으니 잃는 것이 없다.
 - 이미지 검수 시트를 base64 data URL로 만들지 않는다(`sheet()`는 로컬 서버 5199 사용). 큰 출력은 파일로 저장하고 필요한 부분만 읽는다.
 - 이전 세션 기록을 수천 건 단위로 훑지 않는다(데몬 재시작 2회).
+- 쇼츠/릴스(2026-11-12): 롱폼의 기존 클립·키프레임·내레이션만 재사용(Flow 금지). 스킬 `longform-shorts`. `node scripts/subject-map.mjs <ID>` → `node scripts/short-build.mjs --init <ID>` → short.json → `--dry` → 빌드. 액자형 레이아웃, 좌우 이동 금지, 공개 전환은 사용자 확인.

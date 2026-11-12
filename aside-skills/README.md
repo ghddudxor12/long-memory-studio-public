@@ -2,7 +2,7 @@
 
 **English** | [한국어](README.ko.md)
 
-These are the four [Aside](https://asidehq.com) agent skills that operate Long Memory Studio day to day, shared as
+These are the five [Aside](https://asidehq.com) agent skills that operate Long Memory Studio day to day, shared as
 real-world examples. They are copies of a working setup with personal values replaced by placeholders
 (`<repo>`, `<workspace>`, `<google-account>`, `<YOUR_CHANNEL_ID>`, `<YOUR_FLOW_PROJECT_ID>` ...). They also keep the
 channel's own decisions and incident notes (dates, limits observed, what failed): read them as a worked example,
@@ -15,6 +15,8 @@ aside-skills/
 ├── longform-studio/        orchestrator: pipeline, gates, app API, upload/archive, release schedule, decisions log
 │   └── SKILL.md
 ├── longform-flow-veo/      Google Flow video jobs: model policy, submit, collect, upscale, block handling
+│   └── SKILL.md
+├── longform-shorts/        promo Shorts/Reels from an episode's existing media (framed 1080x1920, no new generation)
 │   └── SKILL.md
 ├── longform-gpt-images/    keyframe / end-frame / asset images (Codex CLI by default, ChatGPT web as fallback)
 │   └── SKILL.md
