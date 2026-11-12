@@ -3,7 +3,7 @@ import { api } from "./util";
 
 // Landing page: every topic (series) on the channel, with progress, its rules, a switch button and "new topic".
 // Aside does the same through GET /api/channel, GET /api/series/:id/profile, POST /api/series.
-export type Topic = { id: string; name: string; folder: string; label: string; playlist: string; source?: string; topic?: string | null; episodes: number; lastEpisode: string | null; upcoming: { label: string; title?: string }[]; thumb: string | null; unset: string[] };
+export type Topic = { id: string; name: string; folder: string; label: string; playlist: string; source?: string; topic?: string | null; episodes: number; lastEpisode: string | null; upcoming: { label: string; title?: string }[]; thumb: string | null; unset: string[]; research?: { source?: string; projectName?: string; projectId?: string; packCount?: number; codes?: string[] } | null };
 type Channel = { name: string; handle?: string; series: Topic[] };
 type Row = { id: string; series: string | null; youtube: { privacy: string } | null; public?: boolean; scheduledPublish?: string | null };
 type Short = { id: string; episode: string };
@@ -57,6 +57,7 @@ export function TopicsView({ current, onSwitch, onOpen }: { current: string; onS
           <div className="topic-body">
             <div className="topic-row"><h3>{t.name}</h3>{on && <span className="state adopted">현재 주제</span>}</div>
             <p className="small">원문: {t.source || "-"}</p>
+            {t.research?.projectName && <p className="small">OpenCrab: {t.research.projectName} · 팩 약 {t.research.packCount}개 · 코드 {(t.research.codes || []).join(" ")}</p>}
             <div className="topic-stats">
               <span><b>{t.episodes}</b>편</span><span>공개 <b>{s.pub}</b></span><span>예약 <b>{s.sched}</b></span><span>비공개 <b>{s.priv}</b></span><span>제작 중 <b>{s.making}</b></span><span>쇼츠 <b>{s.shorts}</b></span>
             </div>

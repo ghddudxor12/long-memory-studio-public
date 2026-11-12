@@ -15,7 +15,7 @@ export function seriesOverview() {
   return seriesIds().map((sid) => {
     const p = profile(sid); const eps = Object.entries(config.episodes).filter(([, f]) => f.startsWith(config.series[sid] + '/')).map(([id]) => id);
     let thumb = null; try { const d = path.join(seriesCommon(sid), '썸네일_기본'); const f = fs.readdirSync(d).find((x) => /\.(jpe?g|png|webp)$/i.test(x)); if (f) thumb = `/series-files/${sid}/${encodeURIComponent('썸네일_기본')}/${encodeURIComponent(f)}`; } catch {}
-    return { id: sid, thumb, unset: unsetFields(sid), name: p.name, folder: p.folder, label: p.label, playlist: p.playlist, source: p.source?.name, topic: p.topic || null, episodes: eps.length, lastEpisode: eps.at(-1) || null, upcoming: (config.upcoming || []).filter((u) => u.series === sid) };
+    return { id: sid, thumb, unset: unsetFields(sid), name: p.name, folder: p.folder, label: p.label, playlist: p.playlist, source: p.source?.name, topic: p.topic || null, research: p.research ? { source: p.research.source, projectName: p.research.projectName, projectId: p.research.projectId, packCount: p.research.packCount, codes: p.research.codePrefixes } : null, episodes: eps.length, lastEpisode: eps.at(-1) || null, upcoming: (config.upcoming || []).filter((u) => u.series === sid) };
   });
 }
 

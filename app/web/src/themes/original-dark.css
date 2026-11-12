@@ -59,7 +59,8 @@ textarea { width:100%; min-height:60px; }
 
 /* topics landing + switcher (2026-11-12) */
 .topic-switch { display:flex; gap:var(--space-1); align-items:center; padding:2px; border:1px solid var(--color-border-emphasized); border-radius:var(--radius-sm); }
-.topic-switch button { border:0; height:28px; }
+.topic-switch button { border:0; height:28px; white-space:nowrap; }
+.topic-switch select { border:0; height:28px; max-width:320px; }
 .topic-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:var(--space-4); }
 .panelbox.topic { display:flex; flex-direction:column; gap:var(--space-3); padding:0; overflow:hidden; border:2px solid transparent; }
 .panelbox.topic.on { border-color:var(--color-accent); }

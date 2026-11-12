@@ -13,7 +13,7 @@ globalThis.WS = '/Users/YOU/Library/CloudStorage/GoogleDrive-you@example.com/내
 globalThis.post = async (p, body) => (await fetch(API + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) })).json();
 globalThis.ref = (tree, re) => tree.match(re)?.[1];
 globalThis.snapI = async () => (await snapshot(page, { interactive: true })).tree;
-globalThis.epDir = async (ep) => { const cfg = JSON.parse(await fs.readFile('/Users/YOU/long-memory-studio/studio.config.json', 'utf8')); return '/Users/YOU/Library/CloudStorage/GoogleDrive-you@example.com/내 드라이브/The Long Memory/' + cfg.episodes[ep] + '/'; };
+globalThis.epDir = async (ep) => { const cfg = JSON.parse(await fs.readFile('/Users/YOU/Documents/long-memory-studio/studio.config.json', 'utf8')); return '/Users/YOU/Library/CloudStorage/GoogleDrive-you@example.com/내 드라이브/The Long Memory/' + cfg.episodes[ep] + '/'; };
 globalThis.epTag = (ep) => ep.replace('BIB-GEN-00', 'EP');
 globalThis.lmsAttach = async () => {
   await lmsPaths(); const bt = await listBrowserTabs();
@@ -43,8 +43,8 @@ globalThis.flowSubmit = async (job, opts = {}) => {
   t = await snapI(); await page.locator(ref(t, /button "설정 트리거" \[ref=(e\d+)\]/)).click(); await sleep(650);
   for (const re of [/radio "동영상" \[ref=(e\d+)\]/, /radio "프레임" \[ref=(e\d+)\]/, /radio "720p" \[ref=(e\d+)\]/, /radio "x1" \[ref=(e\d+)\]/]) { t = await snapI(); const r = ref(t, re); if (r) await page.locator(r).click().catch(()=>{}); await sleep(250); }
   t = await snapI();
-  const model = t.match(/button "모델 제품군 선택" \[ref=e\d+\]: "([^"]*)"/)?.[1], cost = t.match(/link "(\d+) 크레딧"/)?.[1] || t.match(/(\d+) 크레딧/)?.[1], trig = t.match(/button "설정 트리거" \[ref=e\d+\]: "([^"]*)"/)?.[1];
-  if (model !== 'Omni 1.2 Flash' || !/720p/.test(trig || '') || !/x1/.test(trig || '')) return { ok: false, why: `settings mismatch: ${model} ${cost} ${trig}` };
+  const model = t.match(/button "모델 제품군 선택" \[ref=e\d+\](?: \[[^\]]+\])*: "([^"]*)"/)?.[1], cost = t.match(/link "(\d+) 크레딧"/)?.[1] || t.match(/(\d+) 크레딧/)?.[1], trig = t.match(/button "설정 트리거" \[ref=e\d+\](?: \[[^\]]+\])*: "([^"]*)"/)?.[1];
+  const want = await flowWant(job); if (model !== want.label || !/720p/.test(trig || '') || !/x1/.test(trig || '') || !new RegExp(`${want.sec}초`).test(trig || '')) return { ok: false, why: `settings mismatch: ${model} ${cost} ${trig} (want ${want.label} ${want.sec}초 ${want.cost})` };
   await page.keyboard.press('Escape'); await sleep(500);
   for (const [slot, file] of [['시작', sName], ['종료', eName]]) {
     t = await snapI(); const sl = ref(t, new RegExp(`button "${slot}" \\[ref=(e\\d+)\\]`)); if (!sl) return { ok: false, why: 'no slot ' + slot };
@@ -308,6 +308,8 @@ globalThis.clipSheet = async (ep, shots, name) => { const dir = (await epDir(ep)
 // Usage: const L = await pacedList('BIB-GEN-014-1'); then repeat `await pacedNext(L)` (one REPL call each, ~70 s) until
 // it returns {done:true} or {stop:true}. After every 5 submissions call `await pacedCheck(ep)` (tile status).
 globalThis.PACE_LOG = globalThis.PACE_LOG || [];
+// expected Flow popup values for a job: model label, length, cost (from /api/queue/meta; user's choice lives in studio.config.json flowVideo)
+globalThis.flowWant = async (j) => { globalThis.QMETA = globalThis.QMETA || await (await fetch(API + '/queue/meta')).json(); const m = j.input.model; return { label: QMETA.labels?.[m] || m, sec: j.input.durationSec, cost: QMETA.flowVideo?.model === m && QMETA.flowVideo?.durationSec === j.input.durationSec ? QMETA.flowVideo.credits : null }; };
 globalThis.pace = async (label) => { const s = Math.round((3 + Math.random() * 2) * 100) / 100; PACE_LOG.push([label, s]); await sleep(s * 1000); return s; };
 globalThis.toTop = async () => { await page.evaluate(() => { document.querySelectorAll('*').forEach((e) => { if (e.scrollTop > 0) e.scrollTop = 0; }); }); await sleep(1000); };
 globalThis.pacedPrep = async (j) => {
@@ -322,10 +324,13 @@ globalThis.pacedPrep = async (j) => {
   for (let i = 0; i < 20; i++) { t = await snapI(); if (t.includes(`"${sName}"`) && t.includes(`"${eName}"`)) break; await sleep(1500); }
   for (let i = 0; i < 30; i++) { const tx = await page.evaluate(() => document.body.innerText); if (!/\d+%/.test(tx) && !/업로드 중/.test(tx)) break; await sleep(1500); }
   t = await snapI(); await page.locator(ref(t, /button "설정 트리거" \[ref=(e\d+)\]/)).click(); await pace('설정 열기');
-  t = await snapI(); const model = t.match(/button "모델 제품군 선택" \[ref=e\d+\]: "([^"]*)"/)?.[1], cost = t.match(/link "(\d+) 크레딧"/)?.[1];
-  const ok = model === 'Omni 1.2 Flash' && /radio "720p" \[ref=e\d+\] \[checked\]/.test(t) && /radio "x1" \[ref=e\d+\] \[checked\]/.test(t) && /radio "프레임" \[ref=e\d+\] \[checked\]/.test(t) && /길이 8초/.test(t);
+  t = await snapI(); const model = t.match(/button "모델 제품군 선택" \[ref=e\d+\](?: \[[^\]]+\])*: "([^"]*)"/)?.[1], cost = t.match(/link "(\d+) 크레딧"/)?.[1];
+  const want = await flowWant(j); const trig = t.match(/button "설정 트리거" \[ref=e\d+\](?: \[[^\]]+\])*: "([^"]*)"/)?.[1] || '';
+  const durOk = new RegExp(`radio "${want.sec}초" \\[ref=e\\d+\\] \\[checked\\]`).test(t) || new RegExp(`길이 ${want.sec}초`).test(t) || new RegExp(`${want.sec}초`).test(trig);
+  const ok = model === want.label && /720p/.test(trig) && /radio "x1" \[ref=e\d+\] \[checked\]/.test(t) && /radio "프레임" \[ref=e\d+\] \[checked\]/.test(t) && durOk;
   await page.keyboard.press('Escape'); await pace('설정 닫기');
-  if (!ok || cost !== '24') return { ok: false, why: `settings ${model} ${cost} (set 동영상/프레임/16:9/Omni 1.2 Flash/720p/8초/x1 once by hand)` };
+  if (!ok || (want.cost != null && cost !== String(want.cost))) return { ok: false, why: `settings ${model} ${cost} ${trig} (want 동영상/프레임/16:9/${want.label}/720p/${want.sec}초/x1 = ${want.cost} credits; set once by hand)` };
+  j._cost = Number(cost);
   for (const [slot, file] of [['시작', sName], ['종료', eName]]) {
     t = await snapI(); const sl = ref(t, new RegExp(`button "${slot}" \\[ref=(e\\d+)\\]`)); if (!sl) return { ok: false, why: 'no slot ' + slot };
     await page.locator(sl).click(); await pace(slot + ' 슬롯');
@@ -340,9 +345,15 @@ globalThis.pacedSubmit = async (j) => {
   page = FLOWTAB; let t = await snapI();
   await page.locator(ref(t, /textbox "무엇을 만들고 싶으신가요\?" \[ref=(e\d+)\]/)).click(); await pace('프롬프트 클릭');
   await page.keyboard.insertText(j.input.prompt); await pace('프롬프트 입력');
+  // 2026-11-13: the text sometimes went into a still-open image picker and the prompt box stayed empty (생성 시작 disabled).
+  // Check the box holds this job's prompt; if not, close the picker (Escape), clear the box and type again once.
+  const head = j.input.prompt.split('\n').find((l) => l.startsWith('Scene:'))?.slice(0, 40) || j.input.prompt.slice(0, 40);
+  const boxText = async () => page.evaluate(() => (document.querySelector('[contenteditable="true"][aria-label="무엇을 만들고 싶으신가요?"], div[placeholder="무엇을 만들고 싶으신가요?"]') || {}).innerText || '');
+  if (!(await boxText()).includes(head)) { await page.keyboard.press('Escape'); await pace('선택창 닫기'); t = await snapI(); await page.locator(ref(t, /textbox "무엇을 만들고 싶으신가요\?" \[ref=(e\d+)\]/)).click(); await pace('프롬프트 다시 클릭'); await page.keyboard.press('Meta+a'); await page.keyboard.press('Backspace'); await pace('프롬프트 비우기'); t = await snapI(); if ((t.match(/button "이미지 소재"/g) || []).length < 2) return { ok: false, why: 'frames lost while retyping' }; await page.keyboard.insertText(j.input.prompt); await pace('프롬프트 재입력'); }
+  if (!(await boxText()).includes(head)) return { ok: false, why: 'prompt not in box' };
   t = await snapI(); if (!/button "생성 시작" \[ref=e\d+\]/.test(t) || /button "생성 시작" \[ref=e\d+\] \[disabled\]/.test(t)) return { ok: false, why: '생성 시작 불가 (credits?)' };
   await page.locator(ref(t, /button "생성 시작" \[ref=(e\d+)\]/)).click(); const at = new Date().toISOString();
-  await post(`/queue/${j.id}/submitted`, { at, cost: 24 }); await sleep(15000); const g = await gridMap2();
+  await post(`/queue/${j.id}/submitted`, { at, cost: j._cost || j.credits?.estimated || null }); await sleep(15000); const g = await gridMap2();
   return { ok: true, at, top: g[0] };
 };
 // list of approved jobs of one episode in shot order (the array is consumed by pacedNext)
@@ -397,6 +408,18 @@ globalThis.ytShortLink = async (vid, related) => {
   return { dialog: d.slice(0, 1500), next: `pick ${related} in this dialog, save, then PATCH /shorts/<id>/state {youtube:{relatedLinked:true}}` };
 };
 
+// ytShortLinkTo(shortVideoId, longTitlePrefix) (advanced features granted 2026-11-13): opens "관련 동영상", picks the
+// long video whose title starts with the prefix (e.g. "4 | Not One Drop"), saves, and returns the label read back after a reload.
+// The long video must be public or unlisted. Then PATCH /shorts/<id>/state {youtube:{relatedLinked:true}}.
+globalThis.ytShortLinkTo = async (vid, titlePrefix) => {
+  const r = await ytShortLink(vid, ''); if (r?.blocked) return { blocked: r.blocked };
+  let t = await snapI(); const esc = titlePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  let op = ref(t, new RegExp(`option "${esc}[^"]*" \\[ref=(e\\d+)\\]`));
+  if (!op) { const sb = ref(t, /textbox "내 동영상 검색" \[ref=(e\d+)\]/); await page.locator(sb).fill((titlePrefix.split('|')[1] || titlePrefix).trim().slice(0, 30)); await sleep(2500); t = await snapI(); op = ref(t, new RegExp(`option "${esc}[^"]*" \\[ref=(e\\d+)\\]`)); }
+  if (!op) return { error: 'option not found: ' + titlePrefix };
+  await page.locator(op).click(); await sleep(2000); t = await snapI(); const sv = t.match(/button "저장" \[ref=(e\d+)\](?! \[disabled\])/); if (sv) { await page.locator(sv[1]).click(); await sleep(4000); }
+  await page.reload(); await sleep(6000); return page.evaluate(() => (document.body.innerText.match(/관련 동영상\s*\n\s*([^\n]+)/) || [])[1] || null);
+};
 // ytVisibility(videoId, "public" | "private" | "unlisted"): change visibility now (edit page dialog: expand
 // "저장 또는 게시", pick the radio, 완료, 저장) and return the label shown after a reload. Public only on the user's word.
 // For a later date use ytSchedule(videoId, 'YYYY. M. D.') instead (shorts and long videos alike).

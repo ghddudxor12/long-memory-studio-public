@@ -9,14 +9,21 @@ import { sha256, validate, toJpg, previewJpg, probe } from './media.mjs';
 export const FAILURE = ['credits-insufficient', 'quota', 'policy-refused', 'ui-changed', 'timeout', 'validation-failed', 'cancelled', 'other'];
 // Flow credits (Google AI Pro). Omni 1.2 is billed per second: 360p 1/s, 720p 3/s up to 10 s, then 2/s and 6/s for 11-15 s.
 // Upscale of an Omni clip to 1080p: 0 up to 10 s, 1/s beyond. Veo 3.1 Fast/Quality and Omni 1.1 are retired on 2026-12-05.
-export const CREDITS = { 'omni-1.2-360p': 8, 'omni-1.2-720p': 24, 'veo-3.1-lite': 10, 'veo-3.1-fast': 20, 'veo-3.1-quality': 100 };
-export const DEFAULT_VIDEO_MODEL = 'omni-1.2-720p'; // 2026-11-09 test: 720p→1080p keeps oil-brush texture, 360p→720p looks soft
+export const CREDITS = { 'omni-1.2-360p': 8, 'omni-1.2-720p': 24, 'veo-3.1-lite-720p': 5, 'veo-3.1-lite': 10, 'veo-3.1-fast': 20, 'veo-3.1-quality': 100 };
+// Flow settings-popup label per model (helpers check the popup against it before submitting)
+export const MODEL_LABEL = { 'omni-1.2-360p': 'Omni 1.2 Flash', 'omni-1.2-720p': 'Omni 1.2 Flash', 'veo-3.1-lite-720p': 'Veo 3.1 - Lite', 'veo-3.1-lite': 'Veo 3.1 - Lite', 'veo-3.1-fast': 'Veo 3.1 - Fast', 'veo-3.1-quality': 'Veo 3.1 - Quality' };
+// Veo 3.1 Lite 720p: 4 s = 5 credits (Flow popup, 2026-11-13); 8 s = 10 (old table); 6 s not yet observed (estimate).
+const VEO_LITE = { 4: 5, 6: 8, 8: 10 };
+// Default video settings come from studio.config.json "flowVideo" (the user picks them in Flow; 2026-11-13: Veo 3.1 Lite, 720p, 4 s, x1).
+export const flowVideo = () => config.flowVideo || { model: 'omni-1.2-720p', durationSec: 8, upscale: '1080p' };
+export const DEFAULT_VIDEO_MODEL = flowVideo().model;
 export function videoCredits(model, sec = 8) {
+  if (/^veo-3\.1-lite/.test(model)) return VEO_LITE[Math.round(sec)] ?? CREDITS[model] ?? 10;
   const m = /^omni-1\.2-(360p|720p)$/.exec(model); if (!m) return CREDITS[model] ?? 20;
   const [a, b] = m[1] === '360p' ? [1, 2] : [3, 6]; const s = Math.max(3, Math.min(15, Math.round(sec)));
   return Math.min(s, 10) * a + Math.max(0, s - 10) * b;
 }
-export const upscaleCredits = (sec = 8) => Math.max(0, Math.round(sec) - 10);
+export const upscaleCredits = (sec = 8) => Math.max(0, Math.round(sec) - 10); // Omni rule; Veo upscale cost unverified, assumed 0 up to 8 s
 export const BACKENDS = {
   'chatgpt-web': { label: 'ChatGPT 웹 (Aside 브라우저)', kinds: ['gpt-keyframe', 'gpt-endframe', 'gpt-asset'] },
   'codex-local': { label: 'Codex CLI (ChatGPT 구독, 서버가 바로 실행)', kinds: ['gpt-keyframe', 'gpt-endframe', 'gpt-asset'] },
@@ -86,8 +93,10 @@ export function createJob(body) {
       output: { dir: kind === 'end' ? '2_소스/keyframes/end' : '2_소스/keyframes/gen', name: `${shot.key}${kind === 'end' ? '_END' : ''}_v${n}.png` },
       status: 'queued', credits: { estimated: 0 } };
   } else if (type === 'flow-veo') {
-    const model = body.model || DEFAULT_VIDEO_MODEL; const mode = body.mode || 'frames-to-video'; const isOmni = model.startsWith('omni-');
-    const durationSec = isOmni ? Math.max(3, Math.min(15, Number(body.durationSec) || 8)) : 8; const upscale = isOmni ? (body.upscale ?? (model.endsWith('360p') ? '720p' : '1080p')) : (body.upscale || null);
+    const FV = flowVideo(); const model = body.model || FV.model; const mode = body.mode || 'frames-to-video'; const isOmni = model.startsWith('omni-'); const isVeo = model.startsWith('veo-');
+    const reqDur = Number(body.durationSec) || (model === FV.model ? FV.durationSec : 8);
+    const durationSec = isOmni ? Math.max(3, Math.min(15, reqDur)) : isVeo ? ([4, 6, 8].includes(reqDur) ? reqDur : 8) : 8;
+    const upscale = isOmni ? (body.upscale ?? (model.endsWith('360p') ? '720p' : '1080p')) : (body.upscale ?? (/720p$/.test(model) ? (FV.upscale || '1080p') : null));
     const st = adoptedFrame(shot, ['start', 'render', 'still']); const en = mode === 'frames-to-video' ? adoptedFrame(shot, ['end']) : null;
     if (!st) throw new Error('채택된 시작 프레임이 없어요');
     if (mode === 'frames-to-video' && !en) throw new Error('채택된 끝 프레임이 없어요 (시작 프레임만 모드로 바꾸거나 끝 프레임을 먼저 만드세요)');
@@ -282,7 +291,7 @@ export function register(app) {
   app.put('/api/episodes/:id/plan', wrap((req) => savePlan(req.params.id, req.body, req.query.dry === '1')));
   app.post('/api/episodes/:id/shots/:key/adopt', wrap((req) => adopt(req.params.id, req.params.key, req.body || {})));
   app.get('/api/queue', wrap((req) => listJobs().filter((j) => (!req.query.episode || j.episode === req.query.episode) && (!req.query.status || String(req.query.status).split(',').includes(j.status)))));
-  app.get('/api/queue/meta', wrap(() => ({ backends: BACKENDS, failure: FAILURE, credits: CREDITS })));
+  app.get('/api/queue/meta', wrap(() => ({ backends: BACKENDS, failure: FAILURE, credits: CREDITS, labels: MODEL_LABEL, flowVideo: flowVideo() })));
   app.post('/api/queue', wrap((req) => createJob(req.body || {})));
   app.post('/api/queue/:jid/approve', wrap((req) => transition(req.params.jid, 'approved', req.body)));
   app.post('/api/queue/:jid/start', wrap((req) => transition(req.params.jid, 'running', req.body)));

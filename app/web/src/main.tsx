@@ -70,7 +70,7 @@ function App() {
     <div className={"layout" + (view === "board" && selected ? " with-panel" : "") + (view !== "board" ? " no-filters" : "")}>
       <header>
         <div className="brand" onClick={() => go("topics")} style={{ cursor: "pointer" }} title="주제 목록">Long Memory Studio</div>
-        <div className="topic-switch" title="주제 전환">{topics.map((t) => <button key={t.id} className={t.id === series ? "on" : ""} onClick={() => switchSeries(t.id)}>{t.name}</button>)}<button onClick={() => go("topics")} title="주제 목록, 새 주제">+</button></div>
+        <div className="topic-switch" title="주제 전환"><select value={series} onChange={(e) => switchSeries(e.target.value)}>{topics.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select><button onClick={() => go("topics")} title="주제 목록, 새 주제">주제 목록</button></div>
         <select value={epId} onChange={(e) => { setEpId(e.target.value); setSel(null); setUrl({ ep: e.target.value }); }}>
           {!seriesEps.length && <option value="">에피소드 없음</option>}
           {seriesEps.map((e) => <option key={e.id} value={e.id}>{e.folder.split("/").pop()}</option>)}
