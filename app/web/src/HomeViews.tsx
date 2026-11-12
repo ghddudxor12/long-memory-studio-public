@@ -49,11 +49,11 @@ export function HomeView({ ep, go, onChanged }: { ep: string; go: (v: any) => vo
 }
 
 // Ledger: all series/episodes, current step, YouTube state, release queue, CSV export
-export function LedgerView({ onOpen }: { onOpen: (id: string) => void }) {
+export function LedgerView({ onOpen, series }: { onOpen: (id: string) => void; series?: string }) {
   const [rows, setRows] = useState<LedgerRow[]>([]); const [f, setF] = useState("all");
   const [next, setNext] = useState<{ epLabel: string; step: string; who: string; detail?: string; blocked?: Blocker | null; how?: string[] }[]>([]);
   const [quota, setQuota] = useState<{ limit: number; used: number; remaining: number; nextAt: string | null } | null>(null);
-  useEffect(() => { api<LedgerRow[]>(`/api/ledger`).then(setRows); api<any>(`/api/upload-quota`).then(setQuota); api<any>(`/api/next`).then((n) => setNext(n.actions || [])); }, []);
+  useEffect(() => { api<LedgerRow[]>(`/api/ledger`).then((l) => { setRows(series ? l.filter((r: any) => r.series === series) : l); const ids = new Set(l.filter((r: any) => !series || r.series === series).map((r) => r.id)); api<any>(`/api/next`).then((n) => setNext((n.actions || []).filter((x: any) => !x.episode || ids.has(x.episode)))); }); api<any>(`/api/upload-quota`).then(setQuota);  }, [series]);
   const list = rows.filter((r) => f === "all" || (f === "release" ? !!r.youtube && !r.public && r.done >= 10 : f === "progress" ? !r.youtube : r.public));
   return (
     <div className="ledger">

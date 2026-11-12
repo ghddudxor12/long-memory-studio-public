@@ -12,9 +12,9 @@ type Short = {
 const WHO: Record<string, string> = { aside: "Aside", user: "사용자", worker: "작업기" };
 const kst = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-");
 
-export function ShortsView() {
+export function ShortsView({ episodes }: { episodes?: string[] }) {
   const [rows, setRows] = useState<Short[]>([]); const [sel, setSel] = useState<string | null>(null);
-  useEffect(() => { api<Short[]>("/api/shorts").then(setRows); }, []);
+  useEffect(() => { api<Short[]>("/api/shorts").then((l) => setRows(episodes ? l.filter((r) => episodes.includes(r.episode)) : l)); }, [episodes?.join()]);
   const cur = rows.find((r) => r.id === sel) || null;
   return (
     <div className="ledger">

@@ -10,11 +10,12 @@ import { QueueView } from "./QueueView";
 import { HomeView, LedgerView } from "./HomeViews";
 import { NarrationView, PackageView, ArchiveView } from "./WorkViews";
 import { ShortsView } from "./ShortsView";
+import { TopicsView, type Topic } from "./TopicsView";
 import { api } from "./util";
 import type { Composed, QJob } from "./types";
 
-type View = "ledger" | "home" | "series" | "narration" | "board" | "kf" | "queue" | "render" | "package" | "archive" | "shorts";
-const VIEWS: [View, string][] = [["ledger", "대장"], ["home", "에피소드 홈"], ["series", "시리즈"], ["narration", "대본·내레이션"], ["board", "샷 보드"], ["kf", "키프레임 검수"], ["queue", "작업 큐"], ["render", "렌더 검수"], ["package", "패키지·업로드"], ["archive", "보관"], ["shorts", "숏폼"]];
+type View = "topics" | "ledger" | "home" | "series" | "narration" | "board" | "kf" | "queue" | "render" | "package" | "archive" | "shorts";
+const VIEWS: [View, string][] = [["topics", "주제"], ["ledger", "대장"], ["home", "에피소드 홈"], ["series", "시리즈"], ["narration", "대본·내레이션"], ["board", "샷 보드"], ["kf", "키프레임 검수"], ["queue", "작업 큐"], ["render", "렌더 검수"], ["package", "패키지·업로드"], ["archive", "보관"], ["shorts", "숏폼"]];
 
 function adoptedPreview(s: Shot): string | undefined {
   if (s.type === "video") return s.clips.find((c) => c.state === "adopted")?.preview;
@@ -28,10 +29,18 @@ function App() {
   const [data, setData] = useState<EpisodeData | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [filter, setFilter] = useState<{ type: string; defect: string; q: string }>({ type: "all", defect: "", q: "" });
-  const [view, setView] = useState<View>(() => (new URLSearchParams(location.search).get("view") as View) || "home");
+  const [view, setView] = useState<View>(() => (new URLSearchParams(location.search).get("view") as View) || "topics");
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [series, setSeries] = useState<string>(() => new URLSearchParams(location.search).get("series") || localStorage.getItem("lms.series") || "");
+  const seriesEps = useMemo(() => episodes.filter((e) => !series || e.series === series), [episodes, series]);
+  const setUrl = (o: Record<string, string>) => { const q = new URLSearchParams(location.search); for (const [k, v] of Object.entries(o)) v ? q.set(k, v) : q.delete(k); history.replaceState(null, "", "?" + q); };
+  const switchSeries = (sid: string, list = episodes) => { setSeries(sid); localStorage.setItem("lms.series", sid); const last = list.filter((e) => e.series === sid).pop(); setEpId(last?.id || ""); setData(null); setSel(null); setUrl({ series: sid, ep: last?.id || "" }); };
   const go = (v: View) => { setView(v); setSel(null); const q = new URLSearchParams(location.search); q.set("view", v); history.replaceState(null, "", "?" + q); };
 
-  useEffect(() => { fetch("/api/episodes").then((r) => r.json()).then((l: EpisodeSummary[]) => { setEpisodes(l); if (!epId && l[0]) setEpId(l[0].id); }); }, []);
+  useEffect(() => { fetch("/api/episodes").then((r) => r.json()).then((l: EpisodeSummary[]) => { setEpisodes(l);
+    const fromEp = l.find((e) => e.id === epId)?.series; const sid = fromEp || series || l[0]?.series || "";
+    if (fromEp || !epId) { if (sid !== series || !epId) { setSeries(sid); if (!epId) { const last = l.filter((e) => e.series === sid).pop(); if (last) setEpId(last.id); } } } });
+    api<{ series: Topic[] }>("/api/channel").then((c) => { setTopics(c.series); setSeries((cur) => (cur && !c.series.some((t) => t.id === cur) ? c.series[0]?.id || "" : cur)); }).catch(() => {}); }, []);
   const load = useCallback(() => { if (epId) fetch(`/api/episodes/${epId}`).then((r) => r.json()).then(setData); }, [epId]);
   useEffect(load, [load]);
 
@@ -60,9 +69,11 @@ function App() {
   return (
     <div className={"layout" + (view === "board" && selected ? " with-panel" : "") + (view !== "board" ? " no-filters" : "")}>
       <header>
-        <div className="brand">Long Memory Studio</div>
-        <select value={epId} onChange={(e) => { setEpId(e.target.value); setSel(null); history.replaceState(null, "", `?ep=${e.target.value}&view=${view}`); }}>
-          {episodes.map((e) => <option key={e.id} value={e.id}>{e.folder.split("/").pop()}</option>)}
+        <div className="brand" onClick={() => go("topics")} style={{ cursor: "pointer" }} title="주제 목록">Long Memory Studio</div>
+        <div className="topic-switch" title="주제 전환">{topics.map((t) => <button key={t.id} className={t.id === series ? "on" : ""} onClick={() => switchSeries(t.id)}>{t.name}</button>)}<button onClick={() => go("topics")} title="주제 목록, 새 주제">+</button></div>
+        <select value={epId} onChange={(e) => { setEpId(e.target.value); setSel(null); setUrl({ ep: e.target.value }); }}>
+          {!seriesEps.length && <option value="">에피소드 없음</option>}
+          {seriesEps.map((e) => <option key={e.id} value={e.id}>{e.folder.split("/").pop()}</option>)}
         </select>
         {prod && <div className="meta">
           <span className="pill">{episodes.find((e) => e.id === epId)?.stageLabel ?? prod.stage}</span>
@@ -76,13 +87,15 @@ function App() {
       <nav className="views">{VIEWS.map(([v, l]) => <button key={v} className={view === v ? "on" : ""} onClick={() => go(v)}>{l}</button>)}
         {prod && <span className="gates">{["G1", "G2", "G3"].map((g) => <span key={g} className={"state " + (prod.approvals?.[g] ? "adopted" : "")} title={prod.approvals?.[g]?.note}>{g} {prod.approvals?.[g] ? "승인" : "대기"}</span>)}</span>}
       </nav>
-      {view === "ledger" && <main className="wide"><LedgerView onOpen={(id) => { setEpId(id); go("home"); }} /></main>}
+      {view === "topics" && <main className="wide"><TopicsView current={series} onSwitch={(sid) => { switchSeries(sid); api<{ series: Topic[] }>("/api/channel").then((c) => setTopics(c.series)); fetch("/api/episodes").then((r) => r.json()).then(setEpisodes); }} onOpen={(sid, v) => { if (sid !== series) switchSeries(sid); go(v as View); }} /></main>}
+      {view === "ledger" && <main className="wide"><LedgerView series={series} onOpen={(id) => { setEpId(id); setUrl({ ep: id }); go("home"); }} /></main>}
+      {!epId && !["topics", "ledger", "shorts", "series"].includes(view) && <main className="wide"><p className="empty">이 주제에는 아직 에피소드가 없어요. Aside에게 첫 에피소드를 시작하라고 하면 여기에 나타납니다.</p></main>}
       {view === "home" && data && <main className="wide"><HomeView ep={epId} go={go} onChanged={load} /></main>}
       {view === "narration" && <main className="wide"><NarrationView ep={epId} /></main>}
       {view === "package" && <main className="wide"><PackageView ep={epId} /></main>}
       {view === "archive" && <main className="wide"><ArchiveView ep={epId} /></main>}
-      {view === "shorts" && <main className="wide"><ShortsView /></main>}
-      {view === "series" && <main className="wide">{episodes.find((e) => e.id === epId)?.series ? <SeriesView sid={episodes.find((e) => e.id === epId)!.series!} /> : <p className="small">이 에피소드는 시리즈에 등록되지 않았어요 (studio.config.json series)</p>}</main>}
+      {view === "shorts" && <main className="wide"><ShortsView episodes={seriesEps.map((e) => e.id)} /></main>}
+      {view === "series" && <main className="wide">{series ? <SeriesView sid={series} /> : <p className="small">이 에피소드는 시리즈에 등록되지 않았어요 (studio.config.json series)</p>}</main>}
       {view === "queue" && <main className="wide"><QueueView ep={epId} /></main>}
       {view === "kf" && data && <main className="wide"><KfReview ep={epId} data={data} onChanged={load} /></main>}
       {view === "render" && data && <main className="wide"><RenderReview ep={epId} data={data} onChanged={load} /></main>}

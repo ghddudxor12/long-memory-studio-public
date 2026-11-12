@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { root, config, readJson } from '../../scripts/lib/paths.mjs';
-import { profile, profileOfEpisode, seriesIds, seriesCommon, loadSeriesJson } from '../../scripts/lib/series.mjs';
+import { profile, profileOfEpisode, seriesIds, seriesCommon, loadSeriesJson, unsetFields } from '../../scripts/lib/series.mjs';
 
 const now = () => new Date().toISOString();
 const reloadConfig = () => { const c = readJson(path.join(root, 'studio.config.json')); config.series = c.series; config.episodes = c.episodes; config.upcoming = c.upcoming; config.channel = c.channel; };
@@ -14,7 +14,8 @@ export function seriesOverview() {
   reloadConfig();
   return seriesIds().map((sid) => {
     const p = profile(sid); const eps = Object.entries(config.episodes).filter(([, f]) => f.startsWith(config.series[sid] + '/')).map(([id]) => id);
-    return { id: sid, name: p.name, folder: p.folder, label: p.label, playlist: p.playlist, source: p.source?.name, topic: p.topic || null, episodes: eps.length, lastEpisode: eps.at(-1) || null, upcoming: (config.upcoming || []).filter((u) => u.series === sid) };
+    let thumb = null; try { const d = path.join(seriesCommon(sid), '썸네일_기본'); const f = fs.readdirSync(d).find((x) => /\.(jpe?g|png|webp)$/i.test(x)); if (f) thumb = `/series-files/${sid}/${encodeURIComponent('썸네일_기본')}/${encodeURIComponent(f)}`; } catch {}
+    return { id: sid, thumb, unset: unsetFields(sid), name: p.name, folder: p.folder, label: p.label, playlist: p.playlist, source: p.source?.name, topic: p.topic || null, episodes: eps.length, lastEpisode: eps.at(-1) || null, upcoming: (config.upcoming || []).filter((u) => u.series === sid) };
   });
 }
 

@@ -43,3 +43,10 @@ export function profile(sid) {
 }
 export const profileOfEpisode = (epId) => { const sid = seriesOfEpisode(epId); return sid ? profile(sid) : { id: null, ...DEFAULT_PROFILE, flowProject: config.channel?.flowProject || null }; };
 export const fill = (tpl, vars) => String(tpl || '').replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? vars[k] : m));
+
+// profile fields the series has not set itself (they fall back to the Bible defaults). Topics must fill the ones that do not fit.
+export function unsetFields(sid) {
+  const own = loadSeriesJson(sid).profile || {}; const out = [];
+  const walk = (d, v, pre = "") => { for (const [k, x] of Object.entries(d)) { if (k === "flowProject") continue; if (x && typeof x === "object" && !Array.isArray(x)) walk(x, v?.[k], pre + k + "."); else if (v?.[k] === undefined) out.push(pre + k); } };
+  walk(DEFAULT_PROFILE, own); return out;
+}
