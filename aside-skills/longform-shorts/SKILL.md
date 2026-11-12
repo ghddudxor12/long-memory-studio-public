@@ -39,7 +39,13 @@ Component: `src/compositions/PromoShort.tsx` (composition id `PromoShort`). Chan
    Shot forms: `"KEY"`, `"KEY@trim"`, `"KEY#c"`, or `{shot, from, trim, c, zoom}`. Hook lines ≤ 34 characters each.
 4. `node scripts/short-build.mjs <EP>-S<n> --dry` → timeline + QC. Fix every `problems` entry (unknown shot/line, anchor not found, clip too short for its window, > 60 s); read `warnings` (short shots, weak caption endings, missing subject positions).
 5. `node scripts/short-build.mjs <EP>-S<n>` → renders, loudness-normalises (-14.5 LUFS, TP ≤ -1), writes `<episode>/1_발행본/shorts/<id>.mp4`, review frames + `build.json` with a `sheet` URL and `sheetSize`. Open the sheet (setViewportSize to sheetSize, screenshot) and check every frame: subject inside the picture, caption matches the picture, no text cut off. Show the user the sheet image inline and the mp4 path.
-6. Upload (YouTube): private first like the long form; title with `#shorts`, link the long video as the related video, then ask the user before making it public (public switch always needs the user). Shorts count toward the 10 uploads / 24 h limit (`GET /api/upload-quota`); plan them together with long-form uploads.
+6. Record the review: `PATCH /api/shorts/<id>/state {"review":{"note":"…"},"by":"aside"}`.
+7. Upload (YouTube): check `GET /api/upload-quota` (shorts count toward the 10 uploads / 24 h limit and are included there), then REPL `await ytShortUpload("<id>")` (helpers from /api/agent/helpers.js): private upload, title from short.json, composed description with the long-video link, AI label "예"; it records the videoId and upload time. A vertical file under 3 min becomes a Short automatically (the dialog shows "Shorts 리믹스").
+8. Link the long video: `await ytShortLink(videoId, relatedVideo)` (edit page "관련 동영상"). As of 2026-11-12 the channel needs YouTube's one-time advanced-features verification first; that is the user's step. Until then record `{"youtube":{"linkBlockedBy":"YouTube 고급 기능 일회성 인증(사용자)"}}`; the description already carries the link.
+9. Public: only after the user says so (scheduled or immediate). Record `{"youtube":{"privacy":"public"}}`.
+
+## App
+`GET /api/shorts` (all shorts, 6 steps: 기획 → 빌드 → 검수 → 업로드(비공개) → 롱폼 연결 → 공개, current step, how-to), `GET /api/shorts/:id`, `GET /api/episodes/:id/short-candidates`, `POST /api/episodes/:id/shorts` (new skeleton), `POST /api/shorts/:id/build {dry}` (job), `PATCH /api/shorts/:id/state`. Unfinished shorts appear in `/api/next` and the brief; the app has a 숏폼 tab with the video and step list.
 
 ## Lessons (2026-11-12, EP1 short)
 - Center-only 9:16 crops lost the subject; pans between subjects made viewers dizzy. The framed 4:3 layout with still shots solved both.

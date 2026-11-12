@@ -9,6 +9,7 @@ import { root, config, episodePaths, readJson } from '../scripts/lib/paths.mjs';
 import { register as registerM3, seriesDir, seriesOf } from './lib/m3.mjs';
 import { register as registerM4, stages as stagesOf } from './lib/m4.mjs';
 import { register as registerAgent } from './lib/agent.mjs';
+import { register as registerShorts } from './lib/shorts.mjs';
 
 const PORT = Number(process.argv[process.argv.indexOf('--port') + 1]) || 5178;
 const app = express();
@@ -159,6 +160,7 @@ app.post('/api/episodes/:id/approve', (req, res) => {
 
 registerM3(app);
 registerM4(app, { startJob });
+registerShorts(app, { startJob });
 registerAgent(app); // AI-facing layer: /api, /api/next, /api/agent/brief, /api/flow/plan, summaries
 // run codex-local image jobs on this machine (server = worker)
 app.post('/api/queue/:jid/run-local', (req, res) => {

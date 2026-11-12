@@ -9,11 +9,12 @@ import { SeriesView } from "./SeriesView";
 import { QueueView } from "./QueueView";
 import { HomeView, LedgerView } from "./HomeViews";
 import { NarrationView, PackageView, ArchiveView } from "./WorkViews";
+import { ShortsView } from "./ShortsView";
 import { api } from "./util";
 import type { Composed, QJob } from "./types";
 
-type View = "ledger" | "home" | "series" | "narration" | "board" | "kf" | "queue" | "render" | "package" | "archive";
-const VIEWS: [View, string][] = [["ledger", "대장"], ["home", "에피소드 홈"], ["series", "시리즈"], ["narration", "대본·내레이션"], ["board", "샷 보드"], ["kf", "키프레임 검수"], ["queue", "작업 큐"], ["render", "렌더 검수"], ["package", "패키지·업로드"], ["archive", "보관"]];
+type View = "ledger" | "home" | "series" | "narration" | "board" | "kf" | "queue" | "render" | "package" | "archive" | "shorts";
+const VIEWS: [View, string][] = [["ledger", "대장"], ["home", "에피소드 홈"], ["series", "시리즈"], ["narration", "대본·내레이션"], ["board", "샷 보드"], ["kf", "키프레임 검수"], ["queue", "작업 큐"], ["render", "렌더 검수"], ["package", "패키지·업로드"], ["archive", "보관"], ["shorts", "숏폼"]];
 
 function adoptedPreview(s: Shot): string | undefined {
   if (s.type === "video") return s.clips.find((c) => c.state === "adopted")?.preview;
@@ -80,6 +81,7 @@ function App() {
       {view === "narration" && <main className="wide"><NarrationView ep={epId} /></main>}
       {view === "package" && <main className="wide"><PackageView ep={epId} /></main>}
       {view === "archive" && <main className="wide"><ArchiveView ep={epId} /></main>}
+      {view === "shorts" && <main className="wide"><ShortsView /></main>}
       {view === "series" && <main className="wide">{episodes.find((e) => e.id === epId)?.series ? <SeriesView sid={episodes.find((e) => e.id === epId)!.series!} /> : <p className="small">이 에피소드는 시리즈에 등록되지 않았어요 (studio.config.json series)</p>}</main>}
       {view === "queue" && <main className="wide"><QueueView ep={epId} /></main>}
       {view === "kf" && data && <main className="wide"><KfReview ep={epId} data={data} onChanged={load} /></main>}

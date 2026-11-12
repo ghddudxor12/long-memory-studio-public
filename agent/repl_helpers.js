@@ -358,3 +358,37 @@ globalThis.pacedNext = async (list) => {
 };
 // tile status of one episode (title, %, fail); also the title list collectShot results can be checked against
 globalThis.pacedCheck = async (ep) => { page = FLOWTAB; await toTop(); const g = await gridMap2(); return g.filter((x) => (x.shot || '').startsWith(ep + ':')).map((x) => [x.shot, x.pct || '', x.fail || 'ok', x.title].join(' | ')); };
+
+// ---------- Promo shorts upload (2026-11-12, tested on BIB-GEN-001-S1 -> <videoId>) ----------
+// ytShortUpload('<EP>-S<n>'): private upload of 1_발행본/shorts/<id>.mp4 with short.json upload.title, a composed
+// description (hook, link to the long video, KJV + AI notes, #Shorts), AI label "예"; records the videoId through
+// PATCH /api/shorts/:id/state (counts toward the 10 uploads / 24 h limit). Vertical <= 3 min files become Shorts
+// automatically (the dialog shows "Shorts 리믹스"). Check GET /api/upload-quota first.
+globalThis.shortDesc = (S) => { const hook = (S.spec?.hook || []).join(' ').replace(/\*/g, ''); return S.spec?.upload?.description || `${hook}\n\nThe full episode, read in order: https://youtu.be/${S.upload.relatedVideo}\n\nScripture quotations are from the King James Version (public domain). Interpretations are labeled as interpretations.\nMade with AI: narration voice (synthetic) and visuals. Script and editing by the channel.\n\n#Shorts #Bible #Genesis`; };
+globalThis.ytShortUpload = async (id) => {
+  const S = await (await fetch(`${API}/shorts/${id}`)).json(); if (!S.files?.mp4) return 'no mp4: build first';
+  if (S.state?.youtube?.videoId) return 'already uploaded: ' + S.state.youtube.videoId;
+  await fs.copyFile(S.files.mp4, YT2 + id + '.mp4');
+  page = YTTAB; await page.goto('https://studio.youtube.com/channel/YOUR_CHANNEL_ID/videos/upload?d=ud'); await sleep(6000);
+  let t = await snapI(); const [fc] = await Promise.all([page.waitForEvent('filechooser', { timeout: 15000 }), page.locator(ref(t, /button "파일 선택" \[ref=(e\d+)\]/)).click()]); await fc.setFiles(YT2 + id + '.mp4'); await sleep(9000);
+  t = await snapI(); await setText(ref(t, /textbox "동영상을 설명하는 제목 추가[^"]*" \[ref=(e\d+)\]/), S.upload.title); await sleep(800);
+  t = await snapI(); await setText(ref(t, /textbox "시청자에게 동영상에 대해 설명해 주세요[^"]*" \[ref=(e\d+)\]/), shortDesc(S)); await sleep(800);
+  t = await snapI(); await page.locator(ref(t, /button "고급 설정 표시" \[ref=(e\d+)\]/)).click(); await sleep(1500);
+  t = await snapI(); await page.locator(ref(t, /radio "아니요, 동영상에 유료 프로모션이 포함되어 있지 않습니다." \[ref=(e\d+)\]/)).click(); await page.locator(ref(t, /radio "예, AI가 사용되었습니다." \[ref=(e\d+)\]/)).click(); await sleep(800);
+  t = await snapI(); const isShort = /Shorts 리믹스/.test(t);
+  const link = await page.evaluate(() => [...document.querySelectorAll('a')].map((a) => a.href).find((h) => /youtu\.be\/|shorts\//.test(h)));
+  const vid = (link || '').match(/(?:shorts\/|youtu\.be\/)([\w-]{11})/)?.[1];
+  const fin = await ytFinish(); if (/still uploading/.test(fin)) return { id, vid, fin, note: 'keep this tab open, call ytFinish() again' };
+  await fs.unlink(YT2 + id + '.mp4').catch(() => {});
+  if (vid) await post(`/shorts/${id}/state`, { youtube: { videoId: vid, privacy: 'private', url: `https://youtube.com/shorts/${vid}` }, by: 'aside' });
+  return { id, vid, isShort, fin };
+};
+// ytShortLink(videoId, relatedId): edit page "관련 동영상". Needs the channel's one-time advanced-features verification
+// (user only). Returns 'verification required' when YouTube shows that dialog (and cancels it).
+globalThis.ytShortLink = async (vid, related) => {
+  page = YTTAB; await page.goto(`https://studio.youtube.com/video/${vid}/edit`); await sleep(7000);
+  let t = await snapI(); const b = ref(t, /button "관련 동영상[^"]*" \[ref=(e\d+)\]/); if (!b) return 'no related-video button';
+  await page.locator(b).click(); await sleep(2500); t = await snapI(); const d = t.substring(t.lastIndexOf('- dialog'));
+  if (/일회성 인증 필요/.test(d)) { const c = ref(d, /button "취소" \[ref=(e\d+)\]/); if (c) await page.locator(c).click(); return 'verification required'; }
+  return { dialog: d.slice(0, 1500), next: `pick ${related} in this dialog, save, then PATCH /shorts/<id>/state {youtube:{relatedLinked:true}}` };
+};

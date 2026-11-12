@@ -1,5 +1,6 @@
 // Promo short (YouTube Shorts / Reels) from an episode's existing media. No Flow, no new pictures.
 // usage:
+//   node scripts/short-build.mjs --candidates <EPISODE_ID>   print candidates only (no files)
 //   node scripts/short-build.mjs --init <EPISODE_ID>   create the next <EP>-S<n>/short.json skeleton and print candidates
 //   node scripts/short-build.mjs <SHORT_ID> --dry      resolve timeline + QC only (fast, no render)
 //   node scripts/short-build.mjs <SHORT_ID>            TTS new lines, render, loudnorm, QC, review frames
@@ -23,14 +24,15 @@ import { ff, probeDur, shortPaths, loadManifest, shotIndex, lineIndex, chunkTime
 const args = process.argv.slice(2);
 const LEAD = 0.4, TAIL = 1.6, OVERLAP = 0.2, MAX_SEC = 60;
 
-if (args[0] === '--init') {
-  const ep = args[1]; const P = episodePaths(ep); const base = path.join(P.app, 'shorts'); fs.mkdirSync(base, { recursive: true });
-  const n = 1 + Math.max(0, ...fs.readdirSync(base).map((d) => Number((d.match(/-S(\d+)$/) || [])[1] || 0)));
-  const id = `${ep}-S${n}`; const dir = path.join(base, id); fs.mkdirSync(dir, { recursive: true });
+if (args[0] === '--init' || args[0] === '--candidates') {
+  const create = args[0] === '--init';
+  const ep = args[1]; const P = episodePaths(ep); const base = path.join(P.app, 'shorts'); if (create) fs.mkdirSync(base, { recursive: true });
+  const n = 1 + Math.max(0, ...(fs.existsSync(base) ? fs.readdirSync(base) : []).map((d) => Number((d.match(/-S(\d+)$/) || [])[1] || 0)));
+  const id = `${ep}-S${n}`; const dir = path.join(base, id); if (create) fs.mkdirSync(dir, { recursive: true });
   const episode = readJson(P.episodeJson); const lines = lineIndex(episode); const idx = shotIndex(loadManifest(ep));
   const subjects = fs.existsSync(path.join(P.app, 'subjects.json')) ? readJson(path.join(P.app, 'subjects.json')) : {};
   const spec = { hook: ['', ''], emphasis: [], beats: [], endCard: { lines: ['THE BIBLE IN ORDER', CHANNEL_NAME] }, upload: { title: '', description: '', relatedVideo: '' } };
-  fs.writeFileSync(path.join(dir, 'short.json'), JSON.stringify(spec, null, 1));
+  if (create) fs.writeFileSync(path.join(dir, 'short.json'), JSON.stringify(spec, null, 1));
   // candidates: hook-like lines (cold open, scripture quotes, turns) with their duration and the shots of their scene
   const cand = Object.values(lines).map((l) => {
     const f = path.join(P.src, l.src); const d = fs.existsSync(f) ? probeDur(f) : null;
@@ -38,7 +40,7 @@ if (args[0] === '--init') {
     return { id: l.id, sec: d && +d.toFixed(2), tags, scene: `${l.scene} ${l.sceneTitle}`, text: l.text };
   });
   const shotsByScene = {}; for (const s of Object.values(idx)) { const sc = s.key.split('-')[0]; (shotsByScene[sc] ||= []).push(`${s.key}(${s.type[0]}${subjects[s.key]?.c != null ? ' c=' + subjects[s.key].c : ''})`); }
-  console.log(JSON.stringify({ short: id, spec: path.join(dir, 'short.json'), unsetSubjects: Object.keys(idx).filter((k) => subjects[k]?.c == null).length, candidates: cand, shotsByScene }, null, 1));
+  console.log(JSON.stringify({ short: create ? id : null, nextId: id, spec: create ? path.join(dir, 'short.json') : null, unsetSubjects: Object.keys(idx).filter((k) => subjects[k]?.c == null).length, candidates: cand, shotsByScene }, null, 1));
   process.exit(0);
 }
 
@@ -75,20 +77,21 @@ beats.forEach((b, i) => {
   const ws = i === 0 ? 0 : beats[i - 1].at + beats[i - 1].dur + gap / 2;
   const we = i === beats.length - 1 ? total : b.at + b.dur + gap / 2;
   const list = b.shots.map((s) => typeof s === 'string' ? (() => { const m = s.match(/^([^@#]+)(?:@([\d.]+))?(?:#([\d.]+))?$/); return { shot: m[1], trim: m[2] && +m[2], c: m[3] && +m[3] }; })() : { ...s });
-  const ct = chunkTimes(b.text, b.dur);
+  const ct = chunkTimes(b.text, b.dur); let after = 0; // anchors are searched in order: each one after the previous match
   const bounds = list.map((s, k) => {
     if (k === 0) return ws;
     if (!s.from) return null;
-    const hit = ct.find((c) => c.text.replace(/[^\w ]/g, '').toLowerCase().split(' ').includes(s.from.toLowerCase()));
-    if (!hit) { problems.push(`beat ${i + 1}: anchor word "${s.from}" not found in captions`); return null; }
-    return b.at + hit.t - 0.1;
+    const n = ct.findIndex((c, ci) => ci >= after && c.text.replace(/[^\w ]/g, '').toLowerCase().split(' ').includes(s.from.toLowerCase()));
+    if (n < 0) { problems.push(`beat ${i + 1}: anchor word "${s.from}" not found in captions after the previous anchor`); return null; }
+    after = n + 1; return Math.max(ws + 0.8, b.at + ct[n].t - 0.1);
   });
   bounds.push(we);
   for (let k = 1; k < bounds.length - 1; k++) if (bounds[k] == null) { let j = k + 1; while (bounds[j] == null) j++; const a = bounds[k - 1]; bounds[k] = a + (bounds[j] - a) / (j - k + 1); }
   list.forEach((s, k) => {
     const sh = idx[s.shot]; if (!sh) { problems.push(`beat ${i + 1}: unknown shot ${s.shot}`); return; }
     const at = bounds[k]; const isLast = i === beats.length - 1 && k === list.length - 1; const dur = bounds[k + 1] - at + (isLast ? 0 : OVERLAP);
-    if (dur < 1.2) warnings.push(`${s.shot} at ${at.toFixed(1)}s is only ${dur.toFixed(1)}s`);
+    if (dur <= 0.5) problems.push(`${s.shot} at ${at.toFixed(1)}s has no room (${dur.toFixed(1)}s): check anchors`);
+    else if (dur < 1.2) warnings.push(`${s.shot} at ${at.toFixed(1)}s is only ${dur.toFixed(1)}s`);
     const c = s.c ?? subjects[s.shot]?.c ?? 0.5; if (subjects[s.shot]?.c == null && s.c == null) warnings.push(`${s.shot}: no subject position (c=0.5 used); run subject-map.mjs`);
     let trim = s.trim ?? 0;
     if (sh.type === 'video') { const len = probeDur(path.join(P.src, sh.src)); if (trim + dur > len - 0.05) { const t2 = Math.max(0, len - dur - 0.05); if (t2 < trim) warnings.push(`${s.shot}: trim ${trim}s lowered to ${t2.toFixed(2)}s to fit ${dur.toFixed(1)}s`); trim = t2; if (dur > len) problems.push(`${s.shot}: needs ${dur.toFixed(1)}s but the clip is ${len.toFixed(1)}s; add another shot to beat ${i + 1}`); } }

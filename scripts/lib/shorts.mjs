@@ -56,6 +56,7 @@ export function chunks(text, max = 4) {
       const left = c.length - start, n = Math.ceil(left / max), ideal = start + Math.round(left / n);
       let best = -1;
       for (let cut = start + 2; cut <= Math.min(start + max, c.length - 2); cut++) if (!weak(c[cut - 1]) && (best < 0 || Math.abs(cut - ideal) < Math.abs(best - ideal))) best = cut;
+      if (best < 0 && start + max + 1 <= c.length - 1 && !weak(c[start + max])) best = start + max + 1; // one word longer rather than a weak ending
       const cut = best > 0 ? best : ideal; out.push(c.slice(start, cut).join(' ')); start = cut;
     }
     out.push(c.slice(start).join(' '));

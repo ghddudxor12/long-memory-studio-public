@@ -7,6 +7,7 @@
 //   POST /api/flow/block          record / clear a Flow anti-automation block
 //   GET  /api/agent/brief         one compact markdown brief for a fresh agent context (rules + live state)
 //   GET  /api/agent/helpers.js    the Aside REPL helper library (eval it in the REPL)
+import { listShorts } from './shorts.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { root, config, episodePaths, readJson } from '../../scripts/lib/paths.mjs';
@@ -20,7 +21,7 @@ const writeState = (s) => { fs.mkdirSync(path.dirname(STATE), { recursive: true 
 const prodFile = (id) => path.join(episodePaths(id).app, 'production.json');
 const epTag = (id) => id.replace('BIB-GEN-00', 'EP'); // Flow upload names: EP9_S01-01_START_v1.png, BIB-GEN-010-1_S01-01_START_v1.png
 const epLabel = (id) => (config.episodes[id].split('/').pop().match(/^(EP\d+(?:-\d+)?)_/) || [])[1] || id;
-const FLOW_GAP_SEC = 90; // one job at a time, 60-90 s apart (anti-automation, see longform-flow-veo skill)
+const FLOW_GAP_SEC = 150; // one job at a time, >= 150 s apart (anti-automation, see longform-flow-veo skill)
 
 // ---------- route index ----------
 const DOC = {
@@ -49,6 +50,12 @@ const DOC = {
   'GET /api/episodes/:id/package': 'metadata, chapters, composed description, package checks',
   'PATCH /api/episodes/:id/upload': 'upload checklist {checks:{…}, youtube:{videoId, privacy, scheduledPublish}, by}',
   'POST /api/episodes/:id/archive/done': 'mark archived {by} (snapshot stages BEFORE evict)',
+  'GET /api/shorts': 'promo shorts: every <EP>-S<n> with 6 steps (spec, build, review, upload, public, link), current step, how-to',
+  'GET /api/shorts/:id': 'one short: state + spec + last build (sheet URL for frame review)',
+  'GET /api/episodes/:id/short-candidates': 'narration lines with seconds and tags (cold-open/quote/turn) + shots per scene',
+  'POST /api/episodes/:id/shorts': 'create the next <EP>-S<n>/short.json skeleton',
+  'POST /api/shorts/:id/build': 'run scripts/short-build.mjs as a job {dry?}',
+  'PATCH /api/shorts/:id/state': '{review:{note}} | {youtube:{videoId, privacy, relatedLinked}} | {instagram|facebook:{url}}, by',
 };
 export function apiIndex(app) {
   const out = []; const stack = app.router?.stack || app._router?.stack || [];
@@ -117,6 +124,8 @@ export function nextActions() {
   const busy = items.some((x) => !x.blocked && !x.error && x.key && !['archive', 'upload'].includes(x.key));
   const up = (config.upcoming || [])[0];
   if (!busy && up) items.push({ episode: null, epLabel: up.label, step: '새 에피소드', key: 'new', who: 'aside', detail: `${up.title || ''} ${up.pack ? '(팩 ' + up.pack + ')' : ''}`.trim(), how: ['clear 또는 새 작업에서 시작 (에피소드마다 새 컨텍스트)', `OpenCrab opencrab_query package_id=${up.pack || '?'} → 대본 → node scripts/new-episode.mjs <ID> --series bible-in-order --ep <N> --title … --en … → 서버 재시작`, '등록 후 voice.rate 115 / timing.lineGapSec 1.0 확인', ...((config.upcoming || [])[1]?.note ? [`그다음: ${config.upcoming[1].note}`] : [])] });
+  // promo shorts: one line per short that is not finished
+  try { for (const s of listShorts()) if (s.current) items.push({ episode: s.episode, short: s.id, epLabel: `${epLabel(s.episode)} 쇼츠 ${s.id.split('-').pop()}`, step: `쇼츠 ${s.current.n} ${s.current.label}`, key: 'short-' + s.current.key, who: s.current.who, detail: s.hook + (s.durationSec ? ` · ${s.durationSec}s` : '') + (s.stale ? ' · 설정이 빌드보다 새로움' : ''), how: s.how }); } catch (e) { items.push({ episode: null, epLabel: '쇼츠', error: e.message }); }
   const order = (x) => (x.blocked ? 2 : x.who === 'aside' || x.who === 'worker' ? 0 : 1);
   items.sort((a, b) => order(a) - order(b) || a.epLabel?.localeCompare(b.epLabel || '') || 0);
   return { at: now(), uploadQuota: uploadQuota(), nextReleaseSlot: nextReleaseSlot(), flow: flowPlan({ brief: true }), actions: items };
@@ -132,7 +141,7 @@ export function flowPlan({ brief = false } = {}) {
   const collect = jobs.filter((j) => j.status === 'running').map((j) => ({ job: j.id, episode: j.episode, shot: j.target.shot, tileLabel: `${epTag(j.episode)}_${j.target.shot}_START`, submittedAt: j.flow?.submittedAt || null }));
   const lastHour = st.submissions.filter((s) => Date.parse(s.at) > Date.now() - 3600e3).length;
   const plan = { block: st.block, canSubmitNow: !st.block && (!nextSubmitAt || Date.parse(nextSubmitAt) <= Date.now()), nextSubmitAt, gapSec: FLOW_GAP_SEC, submittedLastHour: lastHour, submitCount: submit.length, collectCount: collect.length };
-  return brief ? plan : { ...plan, submit, collect, project: config.flowProjectUrl || 'https://flow.google.com/', rules: ['한 번에 1건, 60-90초 간격', "'비정상적인 활동' → POST /api/flow/block 후 중단, 한참 뒤 1건만 재시도", '우회 시도 금지'] };
+  return brief ? plan : { ...plan, submit, collect, project: 'https://flow.google.com/project/YOUR_FLOW_PROJECT_ID', rules: ['한 번에 1건, 60-90초 간격', "'비정상적인 활동' → POST /api/flow/block 후 중단, 한참 뒤 1건만 재시도", '우회 시도 금지'] };
 }
 export function markSubmitted(jid, body = {}) {
   if (body.at && Number.isNaN(Date.parse(body.at))) throw Object.assign(new Error('at은 ISO 시각이어야 해요'), { status: 400 });

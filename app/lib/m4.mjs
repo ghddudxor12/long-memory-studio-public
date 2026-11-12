@@ -122,6 +122,8 @@ function stagesLive(id) {
 export function uploadQuota() {
   const limit = config.uploadDailyLimit || 10; const since = Date.now() - 24 * 3600e3; const times = [];
   for (const id of Object.keys(config.episodes)) { try { const p = readJson(prodFile(id)); const t = p.youtube?.uploadedAt || p.upload?.checks?.uploaded?.at; if (t && Date.parse(t) >= since) times.push({ id, at: t }); } catch {} }
+  // promo shorts count too (state.json youtube.uploadedAt, written by PATCH /api/shorts/:id/state)
+  for (const id of Object.keys(config.episodes)) { try { const d = path.join(episodePaths(id).app, 'shorts'); if (!fs.existsSync(d)) continue; for (const sid of fs.readdirSync(d)) { const f = path.join(d, sid, 'state.json'); if (!fs.existsSync(f)) continue; const t = readJson(f).youtube?.uploadedAt; if (t && Date.parse(t) >= since) times.push({ id: sid, at: t, short: true }); } } catch {} }
   times.sort((a, b) => a.at.localeCompare(b.at));
   const used = times.length; let nextAt = used >= limit ? new Date(Date.parse(times[used - limit].at) + 24 * 3600e3).toISOString() : null; let remaining = Math.max(0, limit - used);
   // the app log is only an estimate (aborted/restarted uploads are not recorded); a limit actually shown by YouTube wins
