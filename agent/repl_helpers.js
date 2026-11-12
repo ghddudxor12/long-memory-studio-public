@@ -364,6 +364,7 @@ globalThis.pacedCheck = async (ep) => { page = FLOWTAB; await toTop(); const g =
 // description (hook, link to the long video, KJV + AI notes, #Shorts), AI label "예"; records the videoId through
 // PATCH /api/shorts/:id/state (counts toward the 10 uploads / 24 h limit). Vertical <= 3 min files become Shorts
 // automatically (the dialog shows "Shorts 리믹스"). Check GET /api/upload-quota first.
+globalThis.shortState = async (id, body) => (await fetch(`${API}/shorts/${id}/state`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json();
 globalThis.shortDesc = (S) => { const hook = (S.spec?.hook || []).join(' ').replace(/\*/g, ''); return S.spec?.upload?.description || `${hook}\n\nThe full episode, read in order: https://youtu.be/${S.upload.relatedVideo}\n\nScripture quotations are from the King James Version (public domain). Interpretations are labeled as interpretations.\nMade with AI: narration voice (synthetic) and visuals. Script and editing by the channel.\n\n#Shorts #Bible #Genesis`; };
 globalThis.ytShortUpload = async (id) => {
   const S = await (await fetch(`${API}/shorts/${id}`)).json(); if (!S.files?.mp4) return 'no mp4: build first';
@@ -380,15 +381,30 @@ globalThis.ytShortUpload = async (id) => {
   const vid = (link || '').match(/(?:shorts\/|youtu\.be\/)([\w-]{11})/)?.[1];
   const fin = await ytFinish(); if (/still uploading/.test(fin)) return { id, vid, fin, note: 'keep this tab open, call ytFinish() again' };
   await fs.unlink(YT2 + id + '.mp4').catch(() => {});
-  if (vid) await post(`/shorts/${id}/state`, { youtube: { videoId: vid, privacy: 'private', url: `https://youtube.com/shorts/${vid}` }, by: 'aside' });
+  if (vid) await shortState(id, { youtube: { videoId: vid, privacy: 'private', url: `https://youtube.com/shorts/${vid}` }, by: 'aside' });
   return { id, vid, isShort, fin };
 };
-// ytShortLink(videoId, relatedId): edit page "관련 동영상". Needs the channel's one-time advanced-features verification
-// (user only). Returns 'verification required' when YouTube shows that dialog (and cancels it).
+// ytShortLink(videoId, relatedId): edit page "관련 동영상" (related video for a Short). If YouTube answers with a dialog
+// instead of the video picker, it is cancelled and returned as {blocked: <heading>}: record it as youtube.linkBlockedBy and tell the user.
 globalThis.ytShortLink = async (vid, related) => {
   page = YTTAB; await page.goto(`https://studio.youtube.com/video/${vid}/edit`); await sleep(7000);
   let t = await snapI(); const b = ref(t, /button "관련 동영상[^"]*" \[ref=(e\d+)\]/); if (!b) return 'no related-video button';
   await page.locator(b).click(); await sleep(2500); t = await snapI(); const d = t.substring(t.lastIndexOf('- dialog'));
-  if (/일회성 인증 필요/.test(d)) { const c = ref(d, /button "취소" \[ref=(e\d+)\]/); if (c) await page.locator(c).click(); return 'verification required'; }
+  const heading = (d.match(/heading "([^"]+)" \[level=2\]/) || [])[1];
+  if (heading && !/관련 동영상|동영상 선택/.test(heading)) { const c = ref(d, /button "취소" \[ref=(e\d+)\]/); if (c) await page.locator(c).click(); return { blocked: heading }; }
   return { dialog: d.slice(0, 1500), next: `pick ${related} in this dialog, save, then PATCH /shorts/<id>/state {youtube:{relatedLinked:true}}` };
+};
+
+// ytVisibility(videoId, "public" | "private" | "unlisted"): change visibility now (edit page dialog: expand
+// "저장 또는 게시", pick the radio, 완료, 저장) and return the label shown after a reload. Public only on the user's word.
+// For a later date use ytSchedule(videoId, 'YYYY. M. D.') instead (shorts and long videos alike).
+globalThis.ytVisibility = async (vid, to = 'public') => {
+  const label = { public: '공개', private: '비공개', unlisted: '일부 공개' }[to];
+  page = YTTAB; await page.goto(`https://studio.youtube.com/video/${vid}/edit`); await sleep(7000);
+  let t = await snapI(); await page.locator(ref(t, /button "동영상 공개 상태 수정" \[ref=(e\d+)\]/)).click(); await sleep(2000);
+  t = await snapI(); let d = t.substring(t.lastIndexOf('- dialog')); const ex = (d.match(/text: "저장 또는 게시"\s*\n\s*- button "Click to expand" \[ref=(e\d+)\]/) || [])[1]; if (ex) { await page.locator(ex).click(); await sleep(1500); }
+  t = await snapI(); d = t.substring(t.lastIndexOf('- dialog')); await page.locator(ref(d, new RegExp(`radio "${label}" \\[ref=(e\\d+)\\]`))).click(); await sleep(800);
+  await page.locator(ref(d, /button "완료" \[ref=(e\d+)\]/)).click(); await sleep(1500);
+  t = await snapI(); const sv = t.match(/button "저장" \[ref=(e\d+)\](?! \[disabled\])/); if (sv) { await page.locator(sv[1]).click(); await sleep(5000); }
+  await page.reload(); await sleep(6000); return page.evaluate(() => (document.body.innerText.match(/공개 상태\s*\n\s*([^\n]+)/) || [])[1]);
 };

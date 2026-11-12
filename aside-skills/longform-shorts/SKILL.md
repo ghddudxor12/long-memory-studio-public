@@ -40,15 +40,21 @@ Component: `src/compositions/PromoShort.tsx` (composition id `PromoShort`). Chan
 4. `node scripts/short-build.mjs <EP>-S<n> --dry` → timeline + QC. Fix every `problems` entry (unknown shot/line, anchor not found, clip too short for its window, > 60 s); read `warnings` (short shots, weak caption endings, missing subject positions).
 5. `node scripts/short-build.mjs <EP>-S<n>` → renders, loudness-normalises (-14.5 LUFS, TP ≤ -1), writes `<episode>/1_발행본/shorts/<id>.mp4`, review frames + `build.json` with a `sheet` URL and `sheetSize`. Open the sheet (setViewportSize to sheetSize, screenshot) and check every frame: subject inside the picture, caption matches the picture, no text cut off. Show the user the sheet image inline and the mp4 path.
 6. Record the review: `PATCH /api/shorts/<id>/state {"review":{"note":"…"},"by":"aside"}`.
-7. Upload (YouTube): check `GET /api/upload-quota` (shorts count toward the 10 uploads / 24 h limit and are included there), then REPL `await ytShortUpload("<id>")` (helpers from /api/agent/helpers.js): private upload, title from short.json, composed description with the long-video link, AI label "예"; it records the videoId and upload time. A vertical file under 3 min becomes a Short automatically (the dialog shows "Shorts 리믹스").
-8. Link the long video: `await ytShortLink(videoId, relatedVideo)` (edit page "관련 동영상"). As of 2026-11-12 the channel needs YouTube's one-time advanced-features verification first; that is the user's step. Until then record `{"youtube":{"linkBlockedBy":"YouTube 고급 기능 일회성 인증(사용자)"}}`; the description already carries the link.
-9. Public: only after the user says so (scheduled or immediate). Record `{"youtube":{"privacy":"public"}}`.
+7. Upload (YouTube): check `GET /api/upload-quota` first. Shorts count toward the same 10 uploads / 24 h limit as the long videos and are included in that count (2026-11-12: the 11th upload of the day, a short, was refused with "일일 업로드 한도 도달"). Then REPL `await ytShortUpload("<id>")` (helpers from /api/agent/helpers.js): private upload, title from short.json, composed description with the long-video link, AI label "예"; it records the videoId and upload time through `PATCH /api/shorts/:id/state`. A vertical file under 3 min becomes a Short automatically (the dialog shows "Shorts 리믹스"). If YouTube shows the limit, stop, close the dialog and tell the user; do not retry.
+8. Link the long video: `await ytShortLink(videoId, relatedVideo)` opens the edit page "관련 동영상"; pick the long video, save, record `{"youtube":{"relatedLinked":true}}`. If YouTube answers with another dialog it returns `{blocked}`: record `{"youtube":{"linkBlockedBy":"…"}}` and tell the user. The description already carries the long-video link either way.
+9. Release (only on the user's word):
+   - scheduled: `ytSchedule(videoId, 'YYYY. M. D.')` (New York 06:00 = 20:00 KST, same slot as the long videos) → record `{"youtube":{"scheduledPublish":"<ISO>"}}`;
+   - now: `await ytVisibility(videoId, "public")` (returns the label after reload, expect "공개") → record `{"youtube":{"privacy":"public","scheduledPublish":null}}`.
+   Check the public page once (`https://www.youtube.com/shorts/<id>`): the platform title and channel overlay sit in the empty bottom block, not over the captions.
 
 ## App
 `GET /api/shorts` (all shorts, 6 steps: 기획 → 빌드 → 검수 → 업로드(비공개) → 롱폼 연결 → 공개, current step, how-to), `GET /api/shorts/:id`, `GET /api/episodes/:id/short-candidates`, `POST /api/episodes/:id/shorts` (new skeleton), `POST /api/shorts/:id/build {dry}` (job), `PATCH /api/shorts/:id/state`. Unfinished shorts appear in `/api/next` and the brief; the app has a 숏폼 tab with the video and step list.
 
-## Lessons (2026-11-12, EP1 short)
+## Lessons (2026-11-12, EP1-EP4 shorts)
 - Center-only 9:16 crops lost the subject; pans between subjects made viewers dizzy. The framed 4:3 layout with still shots solved both.
 - Keyframe stills often carry the exact image a line needs (sun+moon, moon alone, Milky Way) even when no video clip does: check image shots in the subject sheets.
 - Caption chunks: break at punctuation, ≤ 4 words (5-word clauses kept whole), never end on a function word; the same chunking lives in `scripts/lib/shorts.mjs` and the component (keep both in sync).
+- Anchors are searched in order: a later anchor never matches a word before the previous one (EP4 "This" once matched "this" in the first sentence and made a negative-length shot; now a QC problem).
+- `emphasis` marks every occurrence of a word: never add common words ("her" turned "her husband with her" gold).
+- Avoid using the same shot three times in one short; pick another scene shot or a keyframe still.
 - Caption timing is estimated from character share of each line (not word-aligned); fine for 2-4 word chunks.

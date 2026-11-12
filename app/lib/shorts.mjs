@@ -34,10 +34,10 @@ export function shortState(id) {
     build: built,
     review: built && !!state.review && state.review.at >= build.at,
     upload: !!yt.videoId,
-    public: yt.privacy === 'public',
+    public: yt.privacy === 'public' || !!yt.scheduledPublish, // a scheduled release counts: the user decided the date
     link: !!yt.relatedLinked,
   };
-  // linking a Short to a video needs YouTube's one-time advanced-features verification, which only the user can do
+  // when YouTube refuses the related-video link (recorded as youtube.linkBlockedBy), the step waits for the user
   const steps = STEPS.map(([key, label, who], i) => ({ n: i + 1, key, label, who: key === 'link' && yt.linkBlockedBy && !yt.relatedLinked ? 'user' : who, done: done[key] }));
   const current = steps.find((s) => !s.done) || null;
   return {
@@ -57,7 +57,7 @@ export function howForShort(s) {
     case 'review': return [`build.json sheet 열어 프레임 검수(피사체·자막·잘림) → PATCH /api/shorts/${id}/state {"review":{"by":"aside","note":"…"}}`];
     case 'upload': return ['GET /api/upload-quota 확인(쇼츠도 하루 10편 한도에 포함)', `YouTube Studio 비공개 업로드: 제목 ${s.upload.title || '(short.json upload.title)'} → PATCH /api/shorts/${id}/state {"youtube":{"videoId":"…","privacy":"private"}}`];
     case 'public': return ['공개 전환은 사용자 확인 후에만 (예약 공개 포함)'];
-    case 'link': return s.state.youtube?.linkBlockedBy && !s.state.youtube?.relatedLinked ? [`사용자: YouTube 고급 기능 일회성 인증(Studio 설정 → 채널 → 기능 사용 자격요건) 완료 필요. 끝나면 Aside가 편집 화면 "관련 동영상"에 ${s.upload.relatedVideo || '롱폼'} 연결`] : [`Studio 편집 → 관련 동영상 = ${s.upload.relatedVideo || '(롱폼 videoId)'} → PATCH /api/shorts/${id}/state {"youtube":{"relatedLinked":true}}`];
+    case 'link': return s.state.youtube?.linkBlockedBy && !s.state.youtube?.relatedLinked ? [`사용자 확인 필요: ${s.state.youtube.linkBlockedBy}. 해결되면 ytShortLink(videoId, ${s.upload.relatedVideo || '롱폼'}) 다시 실행`] : [`Studio 편집 → 관련 동영상 = ${s.upload.relatedVideo || '(롱폼 videoId)'} → PATCH /api/shorts/${id}/state {"youtube":{"relatedLinked":true}}`];
     default: return [];
   }
 }
