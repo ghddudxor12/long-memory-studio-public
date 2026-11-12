@@ -90,7 +90,7 @@ function howFor(id, cur, jobs) {
       const ap = vj.filter((j) => j.status === 'approved').length, run = vj.filter((j) => j.status === 'running').length, open = ap + run;
       const out = [];
       if (run) out.push(`수집 ${run}건: REPL collectShot((await flowPlan()).collect[0]) 를 done:true가 나올 때까지 반복 호출(한 번에 90초 이내, 이어서 진행) → 돌려준 ingest 명령을 Bash로 실행`);
-      if (ap) out.push(`제출 ${ap}건: REPL const p = await flowPlan(); await freshOne(p.submit) 를 1건씩 반복 (차단·${FLOW_GAP_SEC}초 간격은 freshOne이 확인하고 BLOCKED/WAIT를 돌려줌)`);
+      if (ap) out.push(`제출 ${ap}건: REPL const L = await pacedList('${E}'); 이후 await pacedNext(L) 반복 (동작마다 3~5초 랜덤 대기, 5건마다 pacedCheck, 하루 35건 안팎에서 끊기)`);
       if (!open) out.push(`작업 없음: node scripts/mkveo.mjs ${E} (채택된 시작·끝 프레임이 있는 영상 샷)`);
       out.push(`검수: REPL clipSheet('${E}', shots) → 채택 POST /api/episodes/${E}/shots/<key>/adopt {kind:"clip",file}`);
       return out;

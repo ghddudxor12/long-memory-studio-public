@@ -193,7 +193,7 @@ gantt
 ```
 
 ## 에이전트 스킬
-`aside-skills/`에는 이 앱을 운영하는 Aside 에이전트 스킬 3개(전체 지휘, Google Flow 영상, 이미지)가 들어 있고, 개인 정보는 자리 표시자로 바꿔 두었습니다.
+`aside-skills/`에는 이 앱을 운영하는 Aside 에이전트 스킬 4개(전체 지휘, Google Flow 영상, 이미지, 댓글 응대)가 들어 있고, 개인 정보는 자리 표시자로 바꿔 두었습니다.
 구조와 설치 방법은 `aside-skills/README.md`를 보세요.
 
 ## 참고

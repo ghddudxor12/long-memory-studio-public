@@ -199,7 +199,7 @@ gantt
 ```
 
 ## Agent skills
-`aside-skills/` contains the three Aside agent skills that operate this app (orchestrator, Google Flow video, images), with personal values replaced by placeholders. See `aside-skills/README.md` for the structure and how to install them.
+`aside-skills/` contains the four Aside agent skills that operate this app (orchestrator, Google Flow video, images, comment care), with personal values replaced by placeholders. See `aside-skills/README.md` for the structure and how to install them.
 
 ## Notes
 - Remotion has its own license: free for individuals and small companies, a company license is required otherwise

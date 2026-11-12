@@ -295,3 +295,66 @@ globalThis.collectShot = async (job, opts = {}) => { job = await lmsJob(job);
 globalThis.clipSheet = async (ep, shots, name) => { const dir = (await epDir(ep)) + '_app/preview/clipcheck/'; const all = (await fs.readdir(dir)).filter((f) => f.endsWith('.jpg'));
   const files = []; for (const s of shots) { const vs = all.filter((f) => f.startsWith(s + '_v')).map((f) => +f.match(/_v(\d+)_/)[1]); const v = Math.max(...vs); files.push(...all.filter((f) => f.startsWith(`${s}_v${v}_f`)).sort((a, b) => parseFloat(a.match(/_f([\d.]+)\.jpg/)[1]) - parseFloat(b.match(/_f([\d.]+)\.jpg/)[1])).map((f) => dir + f)); }
   return sheet(files, 5, 240, name || `clips_${ep}`); };
+
+// ---------- Paced Flow submit (user instruction 2026-11-12; replaces freshOne for batch work) ----------
+// Every UI action (menu click, file choice, settings open/close, slot click, image pick, 프롬프트에 추가, prompt click,
+// prompt insert) is followed by a random 3.00-5.00 s pause in 0.01 s steps. Jobs go out back to back without waiting
+// for the previous clip to finish, in batches of 5; each submit is checked ~15 s later for a failed tile.
+// Observed 2026-11-12: 12-2 (13), 13-1 (11), 13-2 (13) went through with no block; the block came back on about the
+// 40th submission of the day (14-1 S02-01, 13:35 KST). Before (fast UI actions) the block came around the 10th.
+// On '비정상적인 활동': pacedNext stops, POSTs /flow/block, releases the job (approved) and you rest 2 h+ before 1 test job.
+// Usage: const L = await pacedList('BIB-GEN-014-1'); then repeat `await pacedNext(L)` (one REPL call each, ~70 s) until
+// it returns {done:true} or {stop:true}. After every 5 submissions call `await pacedCheck(ep)` (tile status).
+globalThis.PACE_LOG = globalThis.PACE_LOG || [];
+globalThis.pace = async (label) => { const s = Math.round((3 + Math.random() * 2) * 100) / 100; PACE_LOG.push([label, s]); await sleep(s * 1000); return s; };
+globalThis.toTop = async () => { await page.evaluate(() => { document.querySelectorAll('*').forEach((e) => { if (e.scrollTop > 0) e.scrollTop = 0; }); }); await sleep(1000); };
+globalThis.pacedPrep = async (j) => {
+  page = FLOWTAB; const tag = epTag(j.episode), key = j.target.shot, dir = await epDir(j.episode);
+  const sv = (j.input.start.file.match(/_v(\d+)/) || [])[1] || '1', ev = (j.input.end.file.match(/_v(\d+)/) || [])[1] || '1';
+  const sName = `${tag}_${key}_START_v${sv}.png`, eName = `${tag}_${key}_END_v${ev}.png`;
+  await fs.mkdir(FLOWTMP, { recursive: true }); await fs.copyFile(dir + j.input.start.file, FLOWTMP + sName); await fs.copyFile(dir + j.input.end.file, FLOWTMP + eName);
+  // always upload a fresh pair: collectShot maps a clip by the video tile directly above its START upload
+  let t = await snapI(); await page.locator(ref(t, /button "미디어 메뉴 추가" \[ref=(e\d+)\]/)).click(); await pace('미디어 메뉴');
+  t = await snapI(); const [fc] = await Promise.all([page.waitForEvent('filechooser', { timeout: 10000 }), page.locator(ref(t, /menuitem "업로드" \[ref=(e\d+)\]/)).click()]);
+  await fc.setFiles([FLOWTMP + sName, FLOWTMP + eName]); await pace('파일 선택');
+  for (let i = 0; i < 20; i++) { t = await snapI(); if (t.includes(`"${sName}"`) && t.includes(`"${eName}"`)) break; await sleep(1500); }
+  for (let i = 0; i < 30; i++) { const tx = await page.evaluate(() => document.body.innerText); if (!/\d+%/.test(tx) && !/업로드 중/.test(tx)) break; await sleep(1500); }
+  t = await snapI(); await page.locator(ref(t, /button "설정 트리거" \[ref=(e\d+)\]/)).click(); await pace('설정 열기');
+  t = await snapI(); const model = t.match(/button "모델 제품군 선택" \[ref=e\d+\]: "([^"]*)"/)?.[1], cost = t.match(/link "(\d+) 크레딧"/)?.[1];
+  const ok = model === 'Omni 1.2 Flash' && /radio "720p" \[ref=e\d+\] \[checked\]/.test(t) && /radio "x1" \[ref=e\d+\] \[checked\]/.test(t) && /radio "프레임" \[ref=e\d+\] \[checked\]/.test(t) && /길이 8초/.test(t);
+  await page.keyboard.press('Escape'); await pace('설정 닫기');
+  if (!ok || cost !== '24') return { ok: false, why: `settings ${model} ${cost} (set 동영상/프레임/16:9/Omni 1.2 Flash/720p/8초/x1 once by hand)` };
+  for (const [slot, file] of [['시작', sName], ['종료', eName]]) {
+    t = await snapI(); const sl = ref(t, new RegExp(`button "${slot}" \\[ref=(e\\d+)\\]`)); if (!sl) return { ok: false, why: 'no slot ' + slot };
+    await page.locator(sl).click(); await pace(slot + ' 슬롯');
+    t = await snapI(); const op = ref(t, new RegExp(`option "${file.replace(/[.]/g, '\\.')}" \\[ref=(e\\d+)\\]`)); if (!op) return { ok: false, why: 'no option ' + file };
+    await page.locator(op).click(); await pace(slot + ' 이미지');
+    t = await snapI(); const add = ref(t, /button "프롬프트에 추가" \[ref=(e\d+)\]/); if (add) { await page.locator(add).click(); await pace(slot + ' 추가'); }
+  }
+  t = await snapI(); if ((t.match(/button "이미지 소재"/g) || []).length < 2) return { ok: false, why: 'frames not attached' };
+  return { ok: true, cost };
+};
+globalThis.pacedSubmit = async (j) => {
+  page = FLOWTAB; let t = await snapI();
+  await page.locator(ref(t, /textbox "무엇을 만들고 싶으신가요\?" \[ref=(e\d+)\]/)).click(); await pace('프롬프트 클릭');
+  await page.keyboard.insertText(j.input.prompt); await pace('프롬프트 입력');
+  t = await snapI(); if (!/button "생성 시작" \[ref=e\d+\]/.test(t) || /button "생성 시작" \[ref=e\d+\] \[disabled\]/.test(t)) return { ok: false, why: '생성 시작 불가 (credits?)' };
+  await page.locator(ref(t, /button "생성 시작" \[ref=(e\d+)\]/)).click(); const at = new Date().toISOString();
+  await post(`/queue/${j.id}/submitted`, { at, cost: 24 }); await sleep(15000); const g = await gridMap2();
+  return { ok: true, at, top: g[0] };
+};
+// list of approved jobs of one episode in shot order (the array is consumed by pacedNext)
+globalThis.pacedList = async (ep) => (await (await fetch(API + '/queue?episode=' + ep)).json()).filter((j) => j.type === 'flow-veo' && j.status === 'approved' && j.approvedAt).sort((a, b) => a.target.shot.localeCompare(b.target.shot));
+// one job per call: prep + submit + quick block check
+globalThis.pacedNext = async (list) => {
+  const pl = await (await fetch(API + '/flow/plan')).json(); if (pl.block) return { stop: true, msg: 'BLOCKED: ' + pl.block.message + ' @ ' + pl.block.at };
+  const j = list.shift(); if (!j) return { done: true }; page = FLOWTAB;
+  if (!/\/project\/[^/]+$/.test(page.url().split('?')[0])) { await page.goto(FLOWURL); for (let i = 0; i < 20; i++) { await sleep(1500); if ((await snapI()).includes('미디어 메뉴 추가')) break; } }
+  await toTop(); await post(`/queue/${j.id}/start`, { by: 'aside' }); await pace('작업 시작 전');
+  const r = await pacedPrep(j); if (!r.ok) { await post(`/queue/${j.id}/approve`, { by: 'aside', note: 'not submitted: ' + r.why }); return { stop: true, msg: j.target.shot + ' NOT SUBMITTED: ' + r.why }; }
+  const s = await pacedSubmit(j); if (!s.ok) { await post(`/queue/${j.id}/approve`, { by: 'aside', note: 'not submitted: ' + s.why }); return { stop: true, msg: j.target.shot + ' NOT SUBMITTED: ' + s.why }; }
+  if (s.top?.fail) { if (/비정상/.test(s.top.fail)) await post('/flow/block', { message: s.top.fail }); await post(`/queue/${j.id}/approve`, { by: 'aside', note: 'Flow 실패: ' + s.top.fail.slice(0, 80) }); return { stop: true, msg: j.target.shot + ' FAIL ' + s.top.fail }; }
+  return { stop: false, msg: j.target.shot + ' 제출 ' + (s.top?.pct || 'ok') + ' | pauses ' + PACE_LOG.slice(-10).map((x) => x[1]).join(',') };
+};
+// tile status of one episode (title, %, fail); also the title list collectShot results can be checked against
+globalThis.pacedCheck = async (ep) => { page = FLOWTAB; await toTop(); const g = await gridMap2(); return g.filter((x) => (x.shot || '').startsWith(ep + ':')).map((x) => [x.shot, x.pct || '', x.fail || 'ok', x.title].join(' | ')); };

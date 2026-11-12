@@ -2,7 +2,7 @@
 
 [English](README.md) | **한국어**
 
-Long Memory Studio를 매일 운영하는 [Aside](https://asidehq.com) 에이전트 스킬 3개를 실제 사례로 공유합니다.
+Long Memory Studio를 매일 운영하는 [Aside](https://asidehq.com) 에이전트 스킬 4개를 실제 사례로 공유합니다.
 실제 쓰는 설정을 복사하고 개인 정보는 자리 표시자(`<repo>`, `<workspace>`, `<google-account>`, `<YOUR_CHANNEL_ID>`,
 `<YOUR_FLOW_PROJECT_ID>` 등)로 바꿨습니다. 채널이 내린 결정과 겪은 문제 기록(날짜, 관찰한 한도, 실패한 일)도 남겨 두었으니
 작동 예시로 읽고 자기 프로젝트에 맞게 규칙을 다시 쓰세요. 스킬 본문은 한국어로 쓰여 있습니다.
@@ -15,7 +15,9 @@ aside-skills/
 │   └── SKILL.md
 ├── longform-flow-veo/      Google Flow 영상 작업: 모델 방침, 제출, 수집, 업스케일, 차단 대응
 │   └── SKILL.md
-└── longform-gpt-images/    키프레임 / 끝 프레임 / 에셋 이미지 (기본 Codex CLI, 대체 ChatGPT 웹)
+├── longform-gpt-images/    키프레임 / 끝 프레임 / 에셋 이미지 (기본 Codex CLI, 대체 ChatGPT 웹)
+│   └── SKILL.md
+└── youtube-comment-care/   직접 실행: 새 댓글에 좋아요·하트·영어 답글 (따뜻한 목사님 말투)
     └── SKILL.md
 ```
 
