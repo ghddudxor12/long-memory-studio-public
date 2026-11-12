@@ -3,7 +3,7 @@
 //   (fallback copy: skills/user/longform-studio/scripts/repl_helpers.js)
 // then: await lmsAttach()  (binds FLOWTAB, FMTAB, YTTAB to open tabs or opens them)
 globalThis.API = 'http://127.0.0.1:5178/api';
-globalThis.SES = '/Users/YOU/.aside/u/0/sessions/2026-10-29_5d6kNwyerdcOFnOh/';
+globalThis.SES = '/Users/YOU/.aside/u/0/sessions/SESSION_FOLDER/';
 // upload staging must live in the CURRENT session dir (setFiles rejects paths outside it); SES stays the old production session (scripts, script.json, frames)
 // (eval cannot use await, so lmsPaths() runs inside lmsAttach(); call it yourself if you skip lmsAttach)
 globalThis.lmsPaths = async () => { let d = null; try { const id = aside.sessions.current()?.id; d = (await fs.readdir('/Users/YOU/.aside/u/0/sessions/')).find((x) => id && x.endsWith('_' + id)); } catch {}
@@ -107,7 +107,7 @@ globalThis.collectTitles = async (titles, budget = 100000) => { const st = Date.
     done.push(ti); }
   return done; };
 // ---------- YouTube scheduled publish ----------
-// ytSchedule('6-o8ZOdfYQk', '2026. 11. 12.', '오전 6:00', '뉴욕(GMT-05:00)') on the video edit page; returns visibility label after save
+// ytSchedule('<videoId>', '2026. 11. 12.', '오전 6:00', '뉴욕(GMT-05:00)') on the video edit page; returns visibility label after save
 globalThis.ytSchedule = async (vid, date, time = '오전 6:00', tz = '뉴욕(GMT-05:00)') => {
   page = YTTAB; await page.goto(`https://studio.youtube.com/video/${vid}/edit`); for (let i = 0; i < 15; i++) { await sleep(1000); if ((await snapI()).includes('동영상 공개 상태 수정')) break; }
   let t = await snapI(); await page.locator(ref(t, /button "동영상 공개 상태 수정" \[ref=(e\d+)\]/)).click(); await sleep(1500);
@@ -165,7 +165,7 @@ globalThis.sheet = async (files, cols = 5, w = 400, name = 'sheet') => { const d
 globalThis.esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 globalThis.lastDlg = (t) => t.slice(t.lastIndexOf('- dialog'));
 
-// ---------- YouTube upload (restored 2026-11-11 from the old session; tested on EP010-1 FjAET7N3Yjg) ----------
+// ---------- YouTube upload (restored 2026-11-11 from the old session; tested on EP010-1 <videoId>) ----------
 // order: copy mp4/thumbnail/SRTs into YT2 (CURSES tmp, setFiles rejects other dirs) -> ytUpload -> poll the
 // '업로드 중' text until gone (keep this tab!) -> ytFinish (private + save) -> check Studio row -> enSub -> langLoop -> ytSchedule
 // -> delAutoEn -> watchTracks -> PATCH /upload. SUBDIR holds <ID>.<code>.srt for en + 36 langs and <ID>_metadata.translations.json
